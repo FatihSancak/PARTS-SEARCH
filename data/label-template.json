@@ -1,0 +1,102 @@
+{
+  "width": 100,
+  "height": 60,
+  "elements": [
+    {
+      "id": "le-mrm17usu-zuudx",
+      "type": "brand",
+      "x": 3,
+      "y": 29.4,
+      "w": 75,
+      "h": 6,
+      "fontSize": 9,
+      "bold": false,
+      "align": "left",
+      "text": "{{value}} {{model}}"
+    },
+    {
+      "id": "le-mrm1e68s-18q03",
+      "type": "location",
+      "x": 57.35,
+      "y": 52.2,
+      "w": 38,
+      "h": 6,
+      "fontSize": 10,
+      "bold": true,
+      "align": "center",
+      "text": ""
+    },
+    {
+      "id": "le-mrm78vul-x9cdr",
+      "type": "custom",
+      "x": 3,
+      "y": 8,
+      "w": 90,
+      "h": 6,
+      "fontSize": 14,
+      "bold": true,
+      "align": "left",
+      "text": "{{designation}}  -  {{part_number}}"
+    },
+    {
+      "id": "le-mrm79msi-dd6jn",
+      "type": "custom",
+      "x": 3,
+      "y": 2,
+      "w": 90,
+      "h": 6,
+      "fontSize": 14,
+      "bold": true,
+      "align": "left",
+      "text": "{{article}}"
+    },
+    {
+      "id": "le-mrm7bvlo-dwnxp",
+      "type": "custom",
+      "x": 3,
+      "y": 14.8,
+      "w": 90,
+      "h": 12,
+      "fontSize": 10,
+      "bold": true,
+      "align": "left",
+      "text": "{{brand}} ~ {{model}}{{type}} ~ {{engine}} ~ {{year}}"
+    },
+    {
+      "id": "le-mrm7ekr0-rs55k",
+      "type": "custom",
+      "x": 3,
+      "y": 35.8,
+      "w": 38,
+      "h": 6,
+      "fontSize": 10,
+      "bold": false,
+      "align": "left",
+      "text": "M.C.: {{engine}}"
+    },
+    {
+      "id": "le-mrm7f5oz-sg774",
+      "type": "custom",
+      "x": 3,
+      "y": 42.2,
+      "w": 38,
+      "h": 6,
+      "fontSize": 10,
+      "bold": false,
+      "align": "left",
+      "text": "G.C.: {{gearbox}}"
+    },
+    {
+      "id": "le-mrne8fc1-fn0ms",
+      "type": "qr",
+      "x": 61.35,
+      "y": 20.4,
+      "w": 30,
+      "h": 30,
+      "fontSize": 10,
+      "bold": false,
+      "align": "left",
+      "text": ""
+    }
+  ]
+}

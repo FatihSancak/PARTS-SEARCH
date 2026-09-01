@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Baytemuer Parça Arama</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=6">
+  <link rel="stylesheet" href="/gallery.css?v=7">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand" id="brandHome" style="cursor: pointer;" title="Ana Sayfa / Home"><img class="site-logo" src="/baytemur-logo.svg" alt="Baytemür Autorecycling GmbH"></div>
+    <div class="top-actions">
+      <nav class="main-menu" aria-label="Ana menü">
+        <button id="partsMenuBtn" class="menu-button active" type="button" data-i18n="menu_parts">Parçalar</button>
+        <button id="vehiclesMenuBtn" class="menu-button" type="button" data-i18n="menu_vehicles">Araçlar</button>
+        <button id="kbaMenuBtn" class="menu-button" type="button" data-i18n="menu_kba">KBA Arama</button>
+      </nav>
+      <button id="settingsBtn" class="topbar-btn" aria-label="Ayarlar" title="Ayarlar / Settings">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+      <label class="unit-picker"><span data-i18n="working_unit">Çalışılan birim</span><select id="unitSelect"><option data-i18n="loading">Yükleniyor…</option></select></label>
+      <div class="connection"><span id="connectionDot"></span><span id="connectionText" data-i18n="checking_server">Sunucu kontrol ediliyor</span></div>
+    </div>
+  </header>
+
+  <main class="search-layout">
+    <button id="mobileSearchPanelToggle" class="mobile-search-panel-toggle" type="button" aria-expanded="false" aria-controls="searchPanelCard">Arama panelini aç</button>
+    <section id="searchPanelCard" class="search-card">
+      <div class="section-title">
+        <div><span class="eyebrow" data-i18n="inventory">ENVANTER</span></div>
+        <div class="search-panel-head-actions"><button id="desktopSearchPanelToggle" class="search-panel-toggle" type="button" aria-expanded="true" title="Arama filtrelerini kapat"><span class="search-toggle-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M7 12h10M10 19h4"/><path d="m5 9-3 3 3 3"/></svg></span><span class="search-toggle-text">Filtreleri kapat</span></button><button id="resetButton" class="ghost"><span data-i18n="reset">Temizle</span> <kbd>F2</kbd></button></div>
+      </div>
+      <form id="searchForm" autocomplete="off">
+        <input type="hidden" name="vehicle" id="hiddenVehicleInput">
+        <div class="filters primary-filters">
+          <label><span data-i18n="filter_part_number">Parça numarası</span><input name="part_number" data-i18n-placeholder="placeholder_part_number" placeholder="Parça numarası"></label>
+          <label><span data-i18n="filter_designation">Parça adı</span><input name="designation" list="designationList" data-i18n-placeholder="placeholder_designation" placeholder="Örn. Turbolader"><datalist id="designationList"></datalist></label>
+          <label><span data-i18n="filter_article">Artikel numarası</span><input name="article" data-i18n-placeholder="placeholder_article" placeholder="202205030122"></label>
+          <label><span data-i18n="filter_brand">Araç markası</span><input name="brand" list="brandList" data-i18n-placeholder="placeholder_brand" placeholder="HYUNDAI"><datalist id="brandList"></datalist></label>
+        </div>
+        <button type="button" id="advancedFiltersToggle" class="advanced-toggle" aria-expanded="false" aria-controls="advancedFilters"><span class="advanced-plus" aria-hidden="true">+</span><span data-i18n="other_filters">Diğer arama seçenekleri</span></button>
+        <div id="advancedFilters" class="filters advanced-filters" hidden>
+          <label><span data-i18n="filter_model">Model</span><input name="model" list="modelList" data-i18n-placeholder="placeholder_model" placeholder="IX35"><datalist id="modelList"></datalist></label>
+          <label><span data-i18n="filter_type">Araç tipi</span><input name="type" list="typeList" data-i18n-placeholder="placeholder_type" placeholder="2.0 TDI"><datalist id="typeList"></datalist></label>
+          <label><span data-i18n="filter_additional">Ek açıklama</span><input name="additional" data-i18n-placeholder="placeholder_additional" placeholder="Parça kodu / açıklama"></label>
+          <label><span data-i18n="filter_engine">Motor kodu</span><input name="engine" list="engineList" data-i18n-placeholder="placeholder_engine" placeholder="D4HA"><datalist id="engineList"></datalist></label>
+          <label><span data-i18n="filter_gearbox">Şanzıman kodu</span><input name="gearbox" data-i18n-placeholder="placeholder_gearbox" placeholder="Kod"></label>
+          <label><span data-i18n="filter_displacement">Motor hacmi</span><input name="displacement" data-i18n-placeholder="placeholder_displacement" placeholder="2000"></label>
+          <label><span data-i18n="filter_location">Depo konumu</span><input name="location" list="locationList" data-i18n-placeholder="placeholder_location" placeholder="B4 Oben"><datalist id="locationList"></datalist></label>
+          <label><span data-i18n="filter_ebay">Ebay artikel no</span><input name="ebay" data-i18n-placeholder="placeholder_ebay" placeholder="117295913344"></label>
+          <label><span data-i18n="filter_limit">Sayfa başına kayıt</span><select name="limit"><option selected>50</option><option>100</option><option>200</option><option>500</option></select></label>
+        </div>
+        <div class="search-actions">
+          <label class="check"><input type="checkbox" name="in_stock" checked> <span data-i18n="show_only_instock">Yalnızca stokta bulunanları göster</span></label>
+          <div class="search-submit-group"><button id="quickResetButton" class="quick-reset-button" type="button" title="Filtreleri temizle" aria-label="Filtreleri temizle"><span aria-hidden="true">↺</span></button><button class="primary" type="submit"><span>⌕</span> <span data-i18n="start_search">Aramayı Başlat</span></button></div>
+        </div>
+      </form>
+    </section>
+    <div class="search-panel-reopen-slot"><button id="searchPanelReopen" class="search-panel-reopen" type="button" title="Arama filtrelerini yeniden aç"><span aria-hidden="true">☰</span><b>Filtreleri göster</b></button></div>
+
+    <section id="resultsCard" class="results-card hidden">
+      <div class="results-head">
+        <div>
+          <span class="eyebrow" data-i18n="results">SONUÇLAR</span>
+          <h2><span data-i18n="found_parts">Bulunan parçalar</span> <span id="resultCount">—</span></h2>
+        </div>
+        <div class="results-head-actions"><div id="resultMeta" class="result-meta" data-i18n="enter_search_criteria">Arama kriterlerinizi girin</div></div>
+      </div>
+      <div id="wmkatStatus" class="wmkat-status hidden" role="status" aria-live="polite"></div>
+      <div id="recycleResults" class="recycle-results hidden"></div>
+      <div id="emptyState" class="empty">
+        <div>⌕</div>
+        <h3 data-i18n="ready_to_search">Aramaya hazır</h3>
+        <p data-i18n="fill_filters_press_search">Filtreleri doldurun ve “Aramayı Başlat” düğmesine basın.</p>
+      </div>
+      <div id="tableWrap" class="table-wrap hidden">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="col_image">Görsel</th>
+              <th class="sortable" data-sort="name" data-i18n="col_part">Parça</th>
+              <th class="sortable" data-sort="brand" data-i18n="col_vehicle">Araç</th>
+              <th data-i18n="col_technical">Teknik bilgi</th>
+              <th class="sortable" data-sort="stock" data-i18n="col_stock">Stok</th>
+              <th class="sortable" data-sort="price" data-i18n="col_price">Fiyat</th>
+              <th class="result-actions-heading" aria-label="İşlemler"></th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+      <nav id="pagination" class="pagination hidden" aria-label="Sonuç sayfaları"></nav>
+    </section>
+  </main>
+
+  <main id="labelsView" class="labels-view hidden">
+    <section class="label-designer-card">
+      <header class="label-designer-head">
+        <div><span class="eyebrow">ETİKET TASARIMI</span><h2>Parça etiketi şablonu</h2><p>Alanları etikete sürükleyin, ölçüleri ayarlayın ve şablonu saklayın.</p></div>
+        <div class="label-size-controls"><label>Genişlik <span><input id="labelWidth" type="number" min="20" max="210" step="1" value="80"> mm</span></label><label>Yükseklik <span><input id="labelHeight" type="number" min="15" max="297" step="1" value="60"> mm</span></label></div>
+        <div class="label-head-actions"><button id="resetLabelTemplate" type="button" class="ghost">Varsayılana dön</button><button id="testLabelPrint" type="button" class="ghost">Test etiketi / PDF</button><button id="saveLabelTemplate" type="button" class="primary">Şablonu sakla</button></div>
+      </header>
+      <div class="label-designer-layout">
+        <aside class="label-palette-panel"><h3>Kullanılabilir alanlar</h3><p>Eklemek için tıklayın veya sürükleyin.</p><div id="labelFieldPalette" class="label-field-palette"></div></aside>
+        <section class="label-workbench"><div class="label-ruler-label">Gerçek oran · mm</div><div id="labelCanvas" class="label-canvas" tabindex="0"></div><small>Alanları taşıyın; seçmek için üzerine tıklayın.</small></section>
+        <aside class="label-inspector"><h3>Seçili alan</h3><div id="labelSelectionInfo" class="label-selection-info">Alan seçilmedi</div><div id="labelInspectorEmpty" class="label-inspector-empty">Düzenlemek için etiketten bir alan seçin. Birden fazla alan için Ctrl veya Shift tuşunu basılı tutun.</div><div id="labelInspectorControls" class="label-inspector-controls hidden">
+          <label>Başlık / sabit metin<input id="labelCustomText" type="text"><small class="label-token-help">Birden fazla bilgiyi aynı satırda birleştirebilirsiniz.</small></label>
+          <div class="label-token-picker"><span>Veri alanı ekle</span><div id="labelTokenPalette"></div></div>
+          <div class="label-control-grid"><label>X (mm)<input id="labelX" type="number" min="0" step="0.5"></label><label>Y (mm)<input id="labelY" type="number" min="0" step="0.5"></label><label>Genişlik<input id="labelElementWidth" type="number" min="3" step="0.5"></label><label>Yükseklik<input id="labelElementHeight" type="number" min="3" step="0.5"></label></div>
+          <label>Yazı boyutu<input id="labelFontSize" type="number" min="5" max="72" step="1"></label>
+          <div class="label-format-buttons"><button id="labelBold" type="button">Kalın</button><button data-label-align="left" type="button">Sol</button><button data-label-align="center" type="button">Orta</button><button data-label-align="right" type="button">Sağ</button></div>
+          <div class="label-position-tools"><span>Etikete hizala</span><div><button data-label-position="left" type="button">Sol</button><button data-label-position="hcenter" type="button">Yatay orta</button><button data-label-position="right" type="button">Sağ</button><button data-label-position="top" type="button">Üst</button><button data-label-position="vcenter" type="button">Dikey orta</button><button data-label-position="bottom" type="button">Alt</button></div></div>
+          <div class="label-distribute-tools"><span>Eşit aralıkla dağıt</span><div><button data-label-distribute="horizontal" type="button">Yatay dağıt</button><button data-label-distribute="vertical" type="button">Dikey dağıt</button></div><small>En az 3 alan seçin; dıştaki alanlar sabit kalır.</small></div>
+          <button id="removeLabelElement" type="button" class="label-remove-button">Alanı kaldır</button>
+        </div></aside>
+      </div>
+    </section>
+  </main>
+
+  <main id="vehiclesView" class="vehicles-view hidden">
+    <section class="search-card vehicle-search-card">
+      <div class="section-title"><div><span class="eyebrow" data-i18n="vehicle_search">ARAÇ ARAMA</span><h2 data-i18n="vehicle_query">Araç kayıtlarını sorgula</h2></div></div>
+      <form id="vehicleSearchForm" autocomplete="off">
+        <div class="vehicle-filters">
+          <label><span data-i18n="vehicle_number">Araç numarası</span><input name="number" data-i18n-placeholder="placeholder_vehicle_number" placeholder="Örn. 202607051"></label>
+          <label><span>VIN</span><input name="vin" data-i18n-placeholder="placeholder_vehicle_vin" placeholder="VIN / şasi numarası"></label>
+          <label><span data-i18n="vehicle_brand">Marka</span><input name="brand" data-i18n-placeholder="placeholder_vehicle_brand" placeholder="Örn. SEAT"></label>
+          <label><span data-i18n="vehicle_model">Model</span><input name="model" data-i18n-placeholder="placeholder_vehicle_model" placeholder="Örn. AROSA"></label>
+          <label><span data-i18n="vehicle_type">Tip</span><input name="type" data-i18n-placeholder="placeholder_vehicle_type" placeholder="Örn. 1.0"></label>
+          <label><span data-i18n="vehicle_engine">Motor kodu</span><input name="engine" data-i18n-placeholder="placeholder_vehicle_engine" placeholder="Motor kodu"></label>
+          <label><span data-i18n="vehicle_kba">KBA numarası</span><input name="kba" data-i18n-placeholder="placeholder_vehicle_kba" placeholder="KBA numarası"></label>
+          <label><span data-i18n="vehicle_status">Durum</span><select name="status">
+            <option value="" data-i18n="status_all">Tüm durumlar</option>
+            <option value="1" data-i18n="status_new">Yeni kabul</option>
+            <option value="2" data-i18n="status_saved">Kaydedildi</option>
+            <option value="3" data-i18n="status_sold">Satıldı</option>
+            <option value="4" data-i18n="status_dismantle">Parçalanacak</option>
+            <option value="5" data-i18n="status_scrapped">Hurdaya ayrıldı</option>
+          </select></label>
+          <button class="primary vehicle-search-button" type="submit"><span>⌕</span> <span data-i18n="get_vehicles">Araçları getir</span></button>
+        </div>
+      </form>
+    </section>
+    <section class="results-card vehicle-results-card">
+      <div class="results-head"><div><span class="eyebrow" data-i18n="menu_vehicles">ARAÇLAR</span><h2><span data-i18n="vehicle_found">Bulunan kayıtlar</span> <span id="vehicleCount">—</span></h2></div><div class="result-meta" data-i18n="vehicle_row_hint">Bir satıra tıklayarak detayları görüntüleyin</div></div>
+      <div id="vehicleEmpty" class="empty"><div>◇</div><h3 data-i18n="vehicle_ready">Araç sorgusuna hazır</h3><p data-i18n="vehicle_ready_hint">Filtreleri doldurun veya bütün araçları listeleyin.</p></div>
+      <div id="vehicleTableWrap" class="table-wrap hidden"><table class="vehicle-table"><thead><tr>
+        <th data-i18n="vehicle_number">Araç no</th><th data-i18n="vehicle_brand_model">Marka / Model</th><th data-i18n="vehicle_vin">Fahrgestellnummer</th>
+        <th data-i18n="vehicle_type">Tip</th><th data-i18n="vehicle_engine_gearbox">Motor / Şanzıman</th><th data-i18n="vehicle_year_reg">Yıl / Tescil</th>
+        <th>KM</th><th data-i18n="vehicle_status">Durum</th><th></th>
+      </tr></thead><tbody id="vehicleResultsBody"></tbody></table></div>
+      <nav id="vehiclePagination" class="pagination hidden" aria-label="Araç sonuç sayfaları"></nav>
+    </section>
+  </main>
+
+  <dialog id="vehicleDetailDialog" class="vehicle-detail-dialog">
+    <div class="dialog-head"><div><span class="eyebrow" data-i18n="detail_label">DETAY</span></div><button id="closeVehicleDetail" aria-label="Kapat">×</button></div>
+    <div id="vehicleDetailContent" class="vehicle-detail-content"></div>
+  </dialog>
+
+  <dialog id="detailDialog">
+    <div class="dialog-head">
+      <div>
+        <span class="eyebrow" data-i18n="part_detail">PARÇA DETAYI</span>
+        <h2 id="detailTitle"></h2>
+      </div>
+      <button id="closeDialog" aria-label="Kapat">×</button>
+    </div>
+    <div id="detailContent" class="detail-grid"></div>
+  </dialog>
+
+  <dialog id="galleryDialog" class="gallery-dialog">
+    <div class="gallery-bar">
+      <div>
+        <strong id="galleryTitle" data-i18n="part_images">Parça görselleri</strong>
+        <small id="galleryCounter"></small>
+      </div>
+      <button id="closeGallery" aria-label="Kapat">×</button>
+    </div>
+    <div class="gallery-stage">
+      <button id="galleryPrev" class="gallery-nav prev" aria-label="Önceki">‹</button>
+      <div id="galleryViewport" class="gallery-viewport" title="Yakınlaştırmak için tıklayın; uzaklaştırmak için Shift + tıklayın"><img id="galleryImage" alt="Parça görseli" draggable="false"></div>
+      <button id="galleryNext" class="gallery-nav next" aria-label="Sonraki">›</button>
+      <div class="gallery-zoom-controls" aria-label="Görsel yakınlaştırma"><button id="galleryZoomOut" type="button" title="Uzaklaştır">−</button><button id="galleryZoomReset" type="button" title="Yakınlaştırmayı sıfırla">100%</button><button id="galleryZoomIn" type="button" title="Yakınlaştır">+</button></div>
+    </div>
+    <div id="galleryThumbs" class="gallery-thumbs"></div>
+  </dialog>
+
+  <dialog id="settingsDialog" class="settings-dialog">
+    <div class="dialog-head">
+      <div>
+        <span class="eyebrow" data-i18n="settings_title">AYARLAR</span>
+        <h2 data-i18n="settings_subtitle">Sistem Ayarları</h2>
+      </div>
+      <button id="closeSettings" aria-label="Kapat">×</button>
+    </div>
+    <div class="settings-grid">
+      <div class="settings-row">
+        <label data-i18n="settings_theme">Arayüz Teması</label>
+        <div class="theme-options">
+          <button id="themeDarkBtn" class="theme-option-btn" data-theme="dark"><span class="icon">🌙</span> <span data-i18n="theme_dark">Koyu</span></button>
+          <button id="themeLightBtn" class="theme-option-btn" data-theme="light"><span class="icon">☀️</span> <span data-i18n="theme_light">Açık</span></button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <label data-i18n="settings_lang">Dil Seçimi</label>
+        <div class="lang-flags">
+          <button class="flag-btn" data-lang="tr" title="Türkçe">
+            <span class="flag-emoji">🇹🇷</span>
+            <span>Türkçe</span>
+          </button>
+          <button class="flag-btn" data-lang="de" title="Deutsch">
+            <span class="flag-emoji">🇩🇪</span>
+            <span>Deutsch</span>
+          </button>
+          <button class="flag-btn" data-lang="en" title="English">
+            <span class="flag-emoji">🇬🇧</span>
+            <span>English</span>
+          </button>
+        </div>
+      </div>
+      <div class="settings-row settings-label-row">
+        <label>Etiket şablonu</label>
+        <button id="labelsMenuBtn" class="settings-label-button" type="button">Etiket şablonunu düzenle</button>
+      </div>
+    </div>
+  </dialog>
+
+  <footer class="site-footer">
+    <div class="footer-signature"><span>© <span id="footerYear"></span> Baytemuer Autorecycling</span><i aria-hidden="true"></i><strong>Baytemuer DevTeam</strong></div>
+  </footer>
+
+  <div id="toast" class="toast"></div>
+  <div id="wmkatOverlay" class="wmkat-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="wmkatOverlayTitle">
+    <div class="wmkat-overlay-card">
+      <div class="wmkat-overlay-mark"><span></span><span></span><span></span></div>
+      <span class="eyebrow">RECYCLE + WMKAT SEARCH</span>
+      <h2 id="wmkatOverlayTitle">Alternatif parçalar aranıyor</h2>
+      <p id="wmkatOverlayQuery" class="wmkat-overlay-query"></p>
+      <div class="wmkat-progress-track"><div class="wmkat-progress-bar"></div></div>
+      <div class="wmkat-search-stages">
+        <div class="done"><i>✓</i><span>Yerel sistemde sonuç bulunamadı</span></div>
+        <div id="recycleRemoteStage" class="active"><i></i><span>Recycle üzerinde ürün aranıyor</span></div>
+        <div id="wmkatRemoteStage"><i></i><span>WMKAT üzerinde referanslar aranacak</span></div>
+        <div id="wmkatStockStage"><i></i><span>WMKAT referansları Recycle içinde aranacak</span></div>
+        <div id="wmkatEuStage" class="hidden"><i></i><span>Referanslar EU Teile yerel stokta aranacak</span></div>
+      </div>
+      <div class="wmkat-overlay-foot"><span id="wmkatElapsed">00:00</span><button id="wmkatCancelButton" type="button">Aramayı iptal et</button></div>
+    </div>
+  </div>
+  <script src="/app.js?v=part-number-normalize-20260828-2"></script>
+  <script src="/labels.js"></script>
+</body>
+</html>

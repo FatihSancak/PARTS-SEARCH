@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Araç Satış Faturaları · Baytemuer</title>
+  <link rel="stylesheet" href="/sales-report.css?v=3">
+  <link rel="stylesheet" href="/report-logout.css">
+  <link rel="stylesheet" href="/auto-invoice-report.css?v=1">
+</head>
+<body>
+  <header>
+    <img src="/baytemur-logo.svg" alt="Baytemuer">
+    <div>
+      <small>...</small>
+      <h1>Araç satış faturası arama</h1>
+    </div>
+    <a class="readonly logout-button" href="/rapor-cikis">ÇIKIŞ</a>
+  </header>
+
+  <main>
+    <section class="auto-search-panel">
+      <form id="autoInvoiceSearchForm" autocomplete="off">
+        <label>
+          Arama
+          <input id="autoInvoiceQuery" name="q" placeholder="Fatura no, ad soyad, VIN, plaka veya araç no" autofocus>
+        </label>
+        <button type="submit">Ara</button>
+      </form>
+      <span id="autoInvoiceSource"></span>
+    </section>
+
+    <div id="autoInvoiceError" class="error hidden"></div>
+    <section id="autoInvoiceResults" class="auto-results hidden"></section>
+  </main>
+
+  <footer>© <span id="reportYear"></span> Baytemuer Autorecycling · <b>Baytemuer DevTeam</b></footer>
+  <script src="/auto-invoice-report.js?v=1"></script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+.logout-button{display:inline-flex!important;align-items:center;justify-content:center;text-decoration:none;transition:.15s ease}
+.logout-button:hover{border-color:var(--red);background:#fff2f0;color:#b42318}

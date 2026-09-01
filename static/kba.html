@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>KBA Marka Model Listesi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=4">
+  <link rel="stylesheet" href="/kba.css?v=4">
+</head>
+<body class="kba-page">
+  <header class="topbar kba-topbar">
+    <a class="brand" href="/" title="Ana sayfa">
+      <img class="site-logo" src="/baytemur-logo.svg" alt="Baytemur Autorecycling GmbH">
+    </a>
+    <div class="top-actions">
+      <nav class="main-menu kba-main-menu" aria-label="Ana menu">
+        <a id="kbaPartsMenu" class="menu-button" href="/">Parcalar</a>
+        <a id="kbaVehiclesMenu" class="menu-button" href="/?view=vehicles">Araclar</a>
+        <a id="kbaKbaMenu" class="menu-button active" href="/kba" aria-current="page">KBA Arama</a>
+      </nav>
+      <div class="connection"><span id="connectionDot"></span><span id="connectionText">KBA listesi</span></div>
+    </div>
+  </header>
+
+  <main class="kba-shell">
+    <section class="kba-search-panel">
+      <div class="section-title">
+        <div>
+          <span class="eyebrow">KBA VERITABANI</span>
+          <h1>KBA numarasi bulunan marka modeller</h1>
+        </div>
+        <button id="kbaReset" class="ghost" type="button">Temizle</button>
+      </div>
+
+      <form id="kbaSearchForm" autocomplete="off">
+        <label class="kba-query">
+          <span>Genel arama</span>
+          <input name="q" placeholder="Marka, model, KBA, motor kodu, arac no veya VIN">
+        </label>
+        <div class="kba-filter-grid">
+          <label><span>Marka</span><input name="brand" placeholder="BMW"></label>
+          <label><span>Model</span><input name="model" placeholder="3er"></label>
+          <label><span>Tip</span><input name="type" placeholder="320 d"></label>
+          <label><span>KBA</span><input name="kba" placeholder="0005 ABC"></label>
+          <label><span>Motor kodu</span><input name="engine" placeholder="N47D20"></label>
+          <label><span>Sayfa</span><select name="limit"><option>50</option><option selected>100</option><option>200</option></select></label>
+        </div>
+        <button id="kbaSubmit" class="primary" type="submit"><span aria-hidden="true">⌕</span><span>Listele</span></button>
+      </form>
+    </section>
+
+    <section class="kba-summary" aria-live="polite">
+      <article><span>Kombinasyon</span><strong id="kbaTotal">-</strong></article>
+      <article><span>Arac kaydi</span><strong id="kbaVehicles">-</strong></article>
+      <article><span>Sayfa</span><strong id="kbaPageInfo">-</strong></article>
+    </section>
+
+    <section class="kba-results-panel">
+      <div class="results-head">
+        <div>
+          <span class="eyebrow">SONUCLAR</span>
+          <h2>Marka / model / KBA listesi</h2>
+        </div>
+        <div id="kbaMeta" class="result-meta">Arama kriterlerini girin.</div>
+      </div>
+      <div id="kbaEmpty" class="empty">
+        <div>⌕</div>
+        <h3>Liste hazir</h3>
+        <p>KBA numarasi bulunan araclari listelemek icin arama yapin.</p>
+      </div>
+      <div id="kbaTableWrap" class="table-wrap hidden">
+        <table class="kba-table">
+          <thead>
+            <tr>
+              <th>Marka</th>
+              <th>Model</th>
+              <th>Tip</th>
+              <th>KBA</th>
+              <th>Motor</th>
+              <th>Baujahr</th>
+              <th>Kayit</th>
+              <th>Ornek arac</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="kbaRows"></tbody>
+        </table>
+      </div>
+      <nav id="kbaPagination" class="pagination hidden" aria-label="KBA sonuc sayfalari"></nav>
+    </section>
+  </main>
+
+  <dialog id="kbaDetailDialog" class="kba-detail-dialog">
+    <div class="dialog-head">
+      <div>
+        <span class="eyebrow">DETAY</span>
+        <h2 id="kbaDetailTitle">KBA araclari</h2>
+      </div>
+      <button id="kbaDetailClose" type="button" aria-label="Kapat">×</button>
+    </div>
+    <div id="kbaDetailContent" class="kba-detail-content"></div>
+  </dialog>
+
+  <footer class="site-footer kba-footer">
+    <nav class="kba-footer-menu" aria-label="Alt menu">
+      <a id="kbaFooterParts" href="/">Parcalar</a>
+      <a id="kbaFooterVehicles" href="/?view=vehicles">Araclar</a>
+      <a id="kbaFooterKba" class="active" href="/kba" aria-current="page">KBA Arama</a>
+    </nav>
+    <div class="footer-signature"><span>© <span id="kbaFooterYear"></span> Baytemuer Autorecycling</span><i aria-hidden="true"></i><strong>Baytemuer DevTeam</strong></div>
+  </footer>
+
+  <script src="/kba.js?v=5"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+
+node_modules/
+.node/
+tmp/
+static/tmp/
+*.log

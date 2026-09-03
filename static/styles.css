@@ -404,7 +404,7 @@ button, input, select {
   margin-top: 16px;
 }
 
-.primary-filters { grid-template-columns: repeat(4, minmax(210px, 1fr)); gap: 18px; }
+.primary-filters { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
 .filters.primary-filters label { font-size: 12px; }
 .filters.primary-filters input { height: 58px; margin-top: 7px; padding: 0 16px; font-size: 18px; font-weight: 700; border-width: 1.5px; }
 .advanced-toggle { width: 100%; min-height: 42px; margin-top: 14px; border: 1px dashed var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-hover); color: var(--color-text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 9px; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }

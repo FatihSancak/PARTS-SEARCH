@@ -101,7 +101,7 @@ function applySearchState(state) {
   });
   unitSelect.value = state.unit || '';
   resultPage = Number(state.page) || 1; resultSort = state.sort || 'newest'; resultDirection = state.dir || 'desc';
-  setAdvancedOpen(['model','type','additional','engine','gearbox','displacement','location','ebay'].some(name => form.elements[name]?.value));
+  setAdvancedOpen(['type','additional','engine','gearbox','displacement','location','ebay'].some(name => form.elements[name]?.value));
   return Boolean(state.searched);
 }
 

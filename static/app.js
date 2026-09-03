@@ -576,6 +576,11 @@ const formatDate = value => value ? new Intl.DateTimeFormat(currentLanguage === 
 const brandSlug=value=>{const key=String(value||'').trim().toUpperCase().replace('Ë','E');const aliases={'VW':'volkswagen','VW...':'volkswagen','VOLKSWAGEN':'volkswagen','MERCEDES BENZ':'mercedes','MERCEDES-BENZ':'mercedes','MERCEDES':'mercedes','MERCCEDES BENZ':'mercedes','DAIMLER':'mercedes','DAIMLER-BENZ':'mercedes','DAIMLERCHRYSLER':'mercedes','CITROEN':'citroen','CITRO-N':'citroen','CITROËN':'citroen','ALFA ROMEO':'alfa-romeo','LAND ROVER':'land-rover','RANGE ROVER':'land-rover','BMW /ALPINA':'alpina','CHEVROLET (USA)':'chevrolet','FORD (USA)':'ford','FORD USA':'ford','DEAWOO':'daewoo','GM DAEWOO':'daewoo','HYNDAI':'hyundai','PEGEOT':'peugeot','PEUGEUT':'peugeot','KIA MOTOR':'kia','KIA ASIA MOTOR':'kia','JEEP / DAIMLERCHRYSLER':'jeep','TATA (TELCO)':'tata','SUBARU/ SUZUKI':'subaru','MARUTI':'maruti'};return aliases[key]||key.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')};
 const brandLogo=value=>value&&value!=='-'?`<img class="brand-logo" src="/brands/${brandSlug(value)}.svg" alt="${esc(value)} logosu" onerror="this.style.display='none'">`:'';
 const ebayLink=value=>value?`<a class="ebay-icon-link" href="https://www.ebay.de/itm/${encodeURIComponent(String(value).trim())}" target="_blank" rel="noopener noreferrer" title="eBay ${esc(value)}" aria-label="eBay ${esc(value)}"><span class="ebay-logo" aria-hidden="true"><i>e</i><i>b</i><i>a</i><i>y</i></span></a>`:'—';
+const priceRevealButton = (value, extraClass = '') => {
+  const numericValue = Number(value);
+  const label = value == null || value === '' ? money(null) : Number.isFinite(numericValue) ? money(numericValue) : String(value);
+  return `<button type="button" class="price result-sale-price price-reveal ${extraClass}" data-price-hidden="true" aria-pressed="false" aria-label="Fiyati goster"><span class="price-mask" aria-hidden="true"></span><span class="price-value">${esc(label)}</span></button>`;
+};
 const ebaySearchUrl=partNumber=>{
   const value=normalizePartSearchValue(partNumber);
   if(!value)return '';
@@ -663,7 +668,7 @@ function render(data, fallbackPartNumber='') {
     </td>
     <td class="result-technical"><div class="result-tech-line"><span>Motor</span><strong>${text(r.Motorcode)}</strong></div><div class="result-tech-line"><span>Getriebe</span><strong>${text(r.Getriebecode)}</strong></div><div class="result-tech-line"><span>${t('Hubraum')}</span><strong>${r.Hubraum == null || r.Hubraum === '' ? '—' : `${esc(r.Hubraum)} cm³`}</strong></div><div class="result-tech-line"><span>${t('Kilometer')}</span><strong>${r.Kilometer == null || r.Kilometer === '' ? '—' : `${vehicleKilometers(r.Kilometer)} km`}</strong></div>${r.KBA_Nummer ? `<div class="result-tech-line"><span>KBA</span><strong>${formatKba(r.KBA_Nummer)}</strong></div>` : ''}</td>
     <td class="result-storage">${stockHtml(r.Lagermenge)}<div class="location-row">${locationBadge(r.Lagerort)}${r.Lagerplatz ? `<span class="location-place">${esc(r.Lagerplatz)}</span>` : ''}</div></td>
-    <td><div class="price result-sale-price">${money(r.VK_Brutto ?? r.Verkaufspreis)}</div></td>
+    <td>${priceRevealButton(r.VK_Brutto ?? r.Verkaufspreis)}</td>
     <td><div class="result-row-actions"><button class="part-label-button icon-action-button" data-label-index="${i}" type="button" title="${t('print_label')}" aria-label="${t('print_label')}"><span class="action-icon" aria-hidden="true">▣</span><span class="action-tooltip">${t('print_label')}</span></button><button class="detail-button icon-action-button" data-index="${i}" title="${t('detail')}" aria-label="${t('detail')}"><span class="action-icon" aria-hidden="true">◉</span><span class="action-tooltip">${t('detail')}</span></button>${r.Ebayartikelnummer ? `<a class="icon-action-button result-ebay-action" href="https://www.ebay.de/itm/${encodeURIComponent(String(r.Ebayartikelnummer).trim())}" target="_blank" rel="noopener noreferrer" title="eBay ${esc(r.Ebayartikelnummer)}" aria-label="eBay ${esc(r.Ebayartikelnummer)}"><span class="ebay-logo" aria-hidden="true"><i>e</i><i>b</i><i>a</i><i>y</i></span><span class="action-tooltip">eBay</span></a>` : ''}</div></td></tr>`).join('');
   body.querySelectorAll('button.detail-button[data-index]').forEach(button=>{
     const row=button.closest('tr');
@@ -865,8 +870,8 @@ function renderRecycleResults(result,options={}){
       </div>
     </div>
     <div class="recycle-result-side">
-      ${item.netPrice?`<small>Netto ${esc(item.netPrice)}</small>`:''}
-      ${item.price?`<div class="recycle-price">${esc(item.price)}</div>`:''}
+      ${item.netPrice?`<small>Netto</small>${priceRevealButton(item.netPrice,'recycle-net-price')}`:''}
+      ${item.price?priceRevealButton(item.price,'recycle-price'):''}
       <a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${currentLanguage==='de'?'Produkt öffnen':currentLanguage==='en'?'Open product':'Ürünü aç'} ↗</a>
     </div>
   </article>`).join('');
@@ -1211,6 +1216,16 @@ document.addEventListener('click', event => {
 });
 
 body.addEventListener('click',e=>{
+  const priceButton=e.target.closest('.price-reveal');
+  if(priceButton){
+    e.preventDefault();
+    e.stopPropagation();
+    const hidden=priceButton.dataset.priceHidden!=='false';
+    priceButton.dataset.priceHidden=hidden?'false':'true';
+    priceButton.setAttribute('aria-pressed',String(hidden));
+    priceButton.setAttribute('aria-label',hidden?'Fiyati gizle':'Fiyati goster');
+    return;
+  }
   const imageButton=e.target.closest('.image-button');
   if(imageButton) return openGallery(currentRows[Number(imageButton.dataset.gallery)]);
   const labelButton=e.target.closest('[data-label-index]');

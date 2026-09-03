@@ -694,6 +694,85 @@ tbody tr:hover td {
   font-family: var(--font-mono);
 }
 
+.price-reveal {
+  position: relative;
+  width: 100%;
+  min-width: 92px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-hover);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .12s ease, background-color .12s ease;
+}
+
+.price-reveal:hover,
+.price-reveal:focus-visible {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+.price-reveal .price-value {
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+  filter: blur(6px);
+  transition: opacity .14s ease, filter .14s ease;
+}
+
+.price-reveal .price-mask {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.10) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.08) 0 1px, transparent 1px 3px),
+    linear-gradient(135deg, rgba(var(--color-primary-rgb),.34), rgba(100,116,139,.22));
+  background-size: 18px 18px, 13px 13px, 100% 100%;
+  animation: price-static .38s steps(2, end) infinite;
+}
+
+.price-reveal[data-price-hidden="false"] {
+  background: transparent;
+}
+
+.price-reveal[data-price-hidden="false"] .price-value {
+  opacity: 1;
+  filter: none;
+}
+
+.price-reveal[data-price-hidden="false"] .price-mask {
+  opacity: 0;
+  animation-play-state: paused;
+}
+
+.recycle-result-side .price-reveal {
+  width: 100%;
+}
+
+.recycle-price.result-sale-price {
+  height: 42px;
+  margin-bottom: 13px;
+  color: #137449;
+  font-size: 22px !important;
+}
+
+.recycle-net-price.result-sale-price {
+  height: 30px;
+  margin: 0 0 8px;
+  color: #3f6f56;
+  font-size: 13px !important;
+}
+
+@keyframes price-static {
+  0% { background-position: 0 0, 0 0, 0 0; }
+  50% { background-position: 9px 3px, -5px 6px, 0 0; }
+  100% { background-position: -4px 8px, 7px -3px, 0 0; }
+}
+
 /* Detail Button (Technical rectangular styling) */
 .detail-button {
   border: 1px solid var(--color-border);
@@ -1324,7 +1403,7 @@ body:not(.light-theme) img.brand-logo[src$="/lancia.svg"],body:not(.light-theme)
 .vehicle-summary-number { padding: 4px 7px; border: 1px solid rgba(40,80,173,.3); border-radius: 6px; background: rgba(40,80,173,.08); color: #2850ad; font-family: var(--font-mono); font-size: 11px; font-weight: 800; cursor: pointer; }
 .vehicle-summary-number:hover, .vehicle-summary-number:focus-visible { border-color: #2850ad; background: #2850ad; color: #fff; outline: none; }
 .vehicle-hero-heading h3 { color: var(--color-text-primary); font-size: 20px; line-height: 1.2; }
-.vehicle-hero-brand{margin:0;color:var(--color-text-primary);font-size:27px;line-height:1.05;text-transform:uppercase;letter-spacing:-.025em}.vehicle-hero-model{margin-top:5px;color:var(--color-text-primary);font-size:18px;font-weight:800}.vehicle-hero-model span{margin-left:7px;color:var(--color-text-secondary);font-size:15px;font-weight:600}.vehicle-hero-meta .vehicle-number-chip{margin:0 8px 0 0;min-height:28px;display:inline-flex;align-items:center;line-height:1}
+.vehicle-hero-brand{margin:0;color:var(--color-text-primary);font-size:27px;line-height:1.05;text-transform:uppercase;letter-spacing:0}.vehicle-hero-model{margin-top:5px;color:var(--color-text-primary);font-size:18px;font-weight:800}.vehicle-hero-model span{margin-left:7px;color:var(--color-text-secondary);font-size:15px;font-weight:600}.vehicle-hero-meta .vehicle-number-chip{margin:0 8px 0 0;min-height:28px;display:inline-flex;align-items:center;line-height:1}
 .vehicle-hero-meta { margin-top: 8px; display: flex; flex-wrap: wrap; align-items:center; justify-content:flex-start; gap: 0; width:100%; color: var(--color-text-secondary); font-family: var(--font-mono); font-size: 11px; text-align:left; }
 .vehicle-hero-meta>span{display:inline-flex;align-items:center;min-height:28px;line-height:1}
 .vehicle-hero-meta span + span::before { content: '·'; margin: 0 8px; color: #2850ad; }
@@ -1686,7 +1765,7 @@ body:not(.light-theme) .seller-section-divider { background: #25231f; }
 .label-selection-info{margin-top:5px;color:var(--accent,#e33b2f);font-size:11px;font-weight:800}
 .label-token-help{color:var(--muted,#68717d);font-size:10px;font-weight:500;line-height:1.35;text-transform:none;letter-spacing:0}
 .label-token-picker{display:grid;gap:7px}.label-token-picker>span{color:var(--muted,#68717d);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}.label-token-picker>div{display:flex;flex-wrap:wrap;gap:5px;max-height:150px;overflow:auto;padding:1px}.label-token-picker button{display:grid;gap:2px;padding:7px 8px;border:1px solid var(--line,#d7dbe0);background:var(--surface-2,#f4f6f8);color:var(--text,#151922);font:700 10px/1.15 "Roboto","Helvetica","Arial",sans-serif;text-align:left}.label-token-picker button:hover{border-color:var(--accent,#e33b2f);color:var(--accent,#e33b2f)}.label-token-picker code{color:var(--muted,#68717d);font:500 8px/1.1 monospace}
-.results-head-actions{display:flex;align-items:flex-end;gap:12px}.label-print-all-button,.part-label-button{border:1px solid var(--color-border);border-radius:999px;background:var(--color-surface-hover);color:var(--color-text-primary);font:800 10px/1 "Roboto","Helvetica","Arial",sans-serif;letter-spacing:.02em;padding:9px 12px;white-space:nowrap}.label-print-all-button:hover,.part-label-button:hover{border-color:var(--color-primary);background:var(--color-primary);color:#fff}.result-row-actions{display:flex;align-items:center;justify-content:center;gap:7px;min-width:82px}.result-row-actions .icon-action-button{position:relative;width:36px;height:36px;min-width:36px;padding:0;display:inline-grid;place-items:center;border-radius:50%}.action-icon{font-size:15px;line-height:1;color:var(--color-primary)}.part-label-button:hover .action-icon,.detail-button:hover .action-icon{color:currentColor}.action-tooltip{position:absolute;left:50%;bottom:calc(100% + 8px);z-index:20;transform:translate(-50%,5px);padding:7px 9px;border-radius:7px;background:var(--color-text-primary);color:var(--color-bg);font-size:9px;font-weight:800;line-height:1;white-space:nowrap;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .14s,transform .14s}.icon-action-button:hover .action-tooltip,.icon-action-button:focus-visible .action-tooltip{opacity:1;visibility:visible;transform:translate(-50%,0)}.detail-label-action{display:flex;justify-content:flex-end;grid-column:1/-1}.detail-label-button{padding:12px 18px;display:inline-flex;align-items:center;gap:7px}.result-sale-price{font-size:17px!important;font-weight:900!important;letter-spacing:-.025em;white-space:nowrap}
+.results-head-actions{display:flex;align-items:flex-end;gap:12px}.label-print-all-button,.part-label-button{border:1px solid var(--color-border);border-radius:999px;background:var(--color-surface-hover);color:var(--color-text-primary);font:800 10px/1 "Roboto","Helvetica","Arial",sans-serif;letter-spacing:.02em;padding:9px 12px;white-space:nowrap}.label-print-all-button:hover,.part-label-button:hover{border-color:var(--color-primary);background:var(--color-primary);color:#fff}.result-row-actions{display:flex;align-items:center;justify-content:center;gap:7px;min-width:82px}.result-row-actions .icon-action-button{position:relative;width:36px;height:36px;min-width:36px;padding:0;display:inline-grid;place-items:center;border-radius:50%}.action-icon{font-size:15px;line-height:1;color:var(--color-primary)}.part-label-button:hover .action-icon,.detail-button:hover .action-icon{color:currentColor}.action-tooltip{position:absolute;left:50%;bottom:calc(100% + 8px);z-index:20;transform:translate(-50%,5px);padding:7px 9px;border-radius:7px;background:var(--color-text-primary);color:var(--color-bg);font-size:9px;font-weight:800;line-height:1;white-space:nowrap;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .14s,transform .14s}.icon-action-button:hover .action-tooltip,.icon-action-button:focus-visible .action-tooltip{opacity:1;visibility:visible;transform:translate(-50%,0)}.detail-label-action{display:flex;justify-content:flex-end;grid-column:1/-1}.detail-label-button{padding:12px 18px;display:inline-flex;align-items:center;gap:7px}.result-sale-price{font-size:17px!important;font-weight:900!important;letter-spacing:0;white-space:nowrap}
 .result-article-number{margin-top:5px;font-size:10px}.result-article-number strong{color:var(--color-text-primary);font-family:var(--font-mono);font-size:10px}.result-row-actions:has(.result-ebay-action){min-width:122px}.result-ebay-action{border:1px solid var(--color-border);background:var(--color-surface-hover);text-decoration:none}.result-ebay-action:hover{border-color:#0064d2;background:var(--color-surface)}.result-ebay-action .ebay-logo{font-size:11px}
 #resultsCard th:first-child,#resultsCard td:first-child{text-align:center;vertical-align:middle}#resultsCard td:first-child .image-button,#resultsCard td:first-child .no-image{margin-left:auto;margin-right:auto;align-items:center;justify-content:center}#resultsCard td:first-child .image-button{display:flex;flex-direction:column}#resultsCard td:first-child .part-thumb{margin-left:auto;margin-right:auto}
 .baytemur-placeholder{position:relative;display:flex!important;flex-direction:column;overflow:hidden;background:var(--color-surface-hover)!important}.baytemur-placeholder img{width:100%;height:100%;object-fit:contain;padding:7px;opacity:.78}.baytemur-placeholder span{position:absolute;left:4px;right:4px;bottom:3px;padding:2px 3px;border-radius:4px;background:color-mix(in srgb,var(--color-surface) 88%,transparent);color:var(--color-text-secondary);font-size:7px;font-weight:800;text-transform:uppercase;line-height:1.1}body:not(.light-theme) .baytemur-placeholder img{filter:brightness(0) invert(1);opacity:.72}

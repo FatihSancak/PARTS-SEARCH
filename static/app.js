@@ -1251,7 +1251,7 @@ document.addEventListener('click', event => {
   }
 });
 
-body.addEventListener('click',e=>{
+resultsCard.addEventListener('click',e=>{
   const priceButton=e.target.closest('.price-reveal');
   if(priceButton){
     e.preventDefault();

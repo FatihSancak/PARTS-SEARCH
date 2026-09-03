@@ -1,5 +1,16 @@
 $ErrorActionPreference = 'Stop'
-$accessPath = (Resolve-Path "$PSScriptRoot\1a.accdb").Path
+$accessCandidates = @(
+    "$PSScriptRoot\1a.accdb",
+    "$PSScriptRoot\..\1a.accdb"
+)
+$accessPath = $null
+foreach ($candidate in $accessCandidates) {
+    if (Test-Path $candidate) {
+        $accessPath = (Resolve-Path $candidate).Path
+        break
+    }
+}
+if (-not $accessPath) { throw '1a.accdb bulunamadı.' }
 $connection = New-Object System.Data.OleDb.OleDbConnection("Provider=Microsoft.ACE.OLEDB.16.0;Data Source=$accessPath;Persist Security Info=False;")
 $connection.Open()
 try {

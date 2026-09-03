@@ -20,9 +20,13 @@ const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
 }[char]));
 
+function staffName(code, row = null) {
+  return row?.name || staffNames[code] || code;
+}
+
 ReportDrilldown.configure({
   getRows: () => reportData.rows || [],
-  getStaffName: code => staffNames[code] || code
+  getStaffName: code => staffName(code)
 });
 
 const now = new Date();
@@ -163,9 +167,13 @@ function populatePersonFilter(currentRows, previousRows) {
   if (!select) return;
   const codes = [...new Set([...currentRows, ...previousRows].map(row => row.code).filter(Boolean))].sort();
   const oldValue = select.value || selectedPerson;
+  const personOptions = codes.map(code => (
+    `<option value="${esc(code)}">${esc(staffName(code))} - ${esc(code)}</option>`
+  )).join('');
   select.innerHTML = '<option value="">Tum kullanicilar</option>' + codes.map(code => (
     `<option value="${esc(code)}">${esc(code)} · ${esc(staffNames[code] || code)}</option>`
   )).join('');
+  select.innerHTML = '<option value="">Tum kullanicilar</option>' + personOptions;
   select.value = codes.includes(oldValue) ? oldValue : '';
   selectedPerson = select.value;
 }
@@ -202,7 +210,7 @@ function fallbackPeopleChart(container, people, previousByPerson) {
   const max = Math.max(1, ...people.map(person => person.total));
   container.innerHTML = people.map(person => {
     const previous = previousByPerson.get(person.code)?.total || 0;
-    return `<button class="bar-row person-link" data-person="${esc(person.code)}"><span class="bar-name"><b>${esc(person.code)}</b><small>${esc(person.name)}</small></span><span class="bar-track"><span class="bar-fill" style="width:${Math.max(0, person.total / max * 100)}%"></span></span><span class="bar-value">${euro.format(person.total)}${changeBadge(person.total, previous, true)}</span></button>`;
+    return `<button class="bar-row person-link" data-person="${esc(person.code)}"><span class="bar-name"><b>${esc(person.name)}</b><small>${esc(person.code)}</small></span><span class="bar-track"><span class="bar-fill" style="width:${Math.max(0, person.total / max * 100)}%"></span></span><span class="bar-value">${euro.format(person.total)}${changeBadge(person.total, previous, true)}</span></button>`;
   }).join('') || 'Kayit yok';
 }
 
@@ -256,7 +264,7 @@ function renderDonutChart(people, total) {
   chartInstances.donut = new window.Chart(canvas, {
     type: 'doughnut',
     data: {
-      labels: people.map(person => `${person.code} - ${person.name}`),
+      labels: people.map(person => `${person.name} - ${person.code}`),
       datasets: [{ data: people.map(person => person.total), backgroundColor: people.map((_, index) => colors[index % colors.length]), borderWidth: 0 }]
     },
     options: {
@@ -276,7 +284,7 @@ function openPerson(code) {
   const previousPeriod = aggregate(previousRows, row => comparableKey(String(row.date).slice(0, reportData.month ? 10 : 7)));
   const best = [...daily.entries()].sort((a, b) => b[1].total - a[1].total)[0];
   $('personCode').textContent = code;
-  $('personTitle').textContent = staffNames[code] || code;
+  $('personTitle').textContent = staffName(code);
   $('personTotal').innerHTML = `${euro.format(total)} ${changeBadge(total, previousTotal)}`;
   $('personCount').textContent = num.format(rows.length);
   $('personAverage').textContent = euro.format(rows.length ? total / rows.length : 0);
@@ -317,10 +325,13 @@ function render(data) {
   reportData = data;
   const rows = data.rows || [];
   const previousRows = data.previousRows || [];
+  for (const row of [...rows, ...previousRows]) {
+    if (row.code && row.name) staffNames[row.code] = row.name;
+  }
   const total = totalAmount(rows);
   const daily = aggregate(rows, row => String(row.date).slice(0, 10));
   const people = [...aggregate(rows, row => row.code).entries()]
-    .map(([code, value]) => ({ code, name: staffNames[code] || code, ...value }))
+    .map(([code, value]) => ({ code, name: staffName(code), ...value }))
     .filter(person => !selectedPerson || person.code === selectedPerson)
     .sort((a, b) => b.total - a.total);
   $('source').textContent = `Kaynak: ${data.source} · ${data.fields.person}${selectedPerson ? ` · Kullanici: ${selectedPerson}` : ''}`;
@@ -342,6 +353,7 @@ function render(data) {
 
   renderDonutChart(people, total);
   $('legend').innerHTML = people.slice(0, 8).map((person, index) => `<div><i style="background:${colors[index % colors.length]}"></i><span>${esc(person.code)} · ${total ? (person.total / total * 100).toFixed(1) : 0}%</span></div>`).join('');
+  $('legend').innerHTML = people.slice(0, 8).map((person, index) => `<div><i style="background:${colors[index % colors.length]}"></i><span>${esc(person.name)} - ${total ? (person.total / total * 100).toFixed(1) : 0}%</span></div>`).join('');
   $('content').classList.remove('hidden');
 }
 

@@ -27,12 +27,21 @@ const optionalColumnSelect = (columns, candidates, alias, sqlType = 'nvarchar(25
         : `CAST(NULL AS ${sqlType}) AS ${quoteSqlName(alias)}`;
 };
 const chooseColumn = (columns, patterns) => {
+    const normalizedPatterns = patterns.map(normalizeDbColumnName);
     for (const pattern of patterns) {
         const exact = columns.find(column => column.name.toLowerCase() === pattern);
         if (exact) return exact;
     }
+    for (const pattern of normalizedPatterns) {
+        const exact = columns.find(column => normalizeDbColumnName(column.name) === pattern);
+        if (exact) return exact;
+    }
     for (const pattern of patterns) {
         const partial = columns.find(column => column.name.toLowerCase().includes(pattern));
+        if (partial) return partial;
+    }
+    for (const pattern of normalizedPatterns) {
+        const partial = columns.find(column => normalizeDbColumnName(column.name).includes(pattern));
         if (partial) return partial;
     }
     return null;
@@ -541,7 +550,7 @@ fastify.get('/api/sales-report', { preHandler: requireAnyReportSession }, async 
             tables.get(key).columns.push({ name: row.ColumnName, type: String(row.DataType).toLowerCase() });
         }
         const datePatterns = ['auftrags-/rg-datum','auftrags_rg_datum','auftragsdatum','auftrags-datum','rgdatum','rg-datum','rechnungsdatum','rechnungs-datum','belegdatum','datum'];
-        const personPatterns = ['bearbeiter-id','bearbeiter_id','bearbeiter / abteilung','bearbeiter/abteilung','bearbeiter_abteilung','bearbeiter','bearbeiterkÃ¼rzel','bearbeiterkuerzel','mitarbeiterkÃ¼rzel','mitarbeiterkuerzel','personalcode','personalkÃ¼rzel','personalkuerzel','benutzerkÃ¼rzel','benutzerkuerzel'];
+        const personPatterns = ['bearbeiter / abteilung','bearbeiter/abteilung','bearbeiter_abteilung','bearbeiterkÃ¼rzel','bearbeiterkuerzel','bearbeiterkurzel','mitarbeiterkÃ¼rzel','mitarbeiterkuerzel','mitarbeiterkurzel','personalcode','personalkÃ¼rzel','personalkuerzel','personalkurzel','benutzerkÃ¼rzel','benutzerkuerzel','benutzerkurzel','bearbeiter','bearbeiter-id','bearbeiter_id'];
         const amountPatterns = ['rechnungsbetrag','rechnungs-betrag','rechnungs_betrag','in gewÃ¤hlter wÃ¤hrung','gesamtbetrag','bruttobetrag','endbetrag','zahlbetrag','rechnungswert','betrag'];
         const numberPatterns = ['auftrags-nr','auftragsnr','rechnungs-nr','rechnungsnr','quittungs-nr','quittungsnr','belegnr'];
         const numericTypes = new Set(['int','bigint','smallint','tinyint','decimal','numeric','float','real','money','smallmoney']);
@@ -581,11 +590,15 @@ fastify.get('/api/sales-report', { preHandler: requireAnyReportSession }, async 
         const bearbeiterTable = [...tables.values()].find(item => item.database === source.database && item.table.toLowerCase() === 'bearbeiter')
             || [...tables.values()].find(item => item.table.toLowerCase() === 'bearbeiter');
         const bearbeiterId = bearbeiterTable && chooseColumn(bearbeiterTable.columns, ['bearbeiter-id','bearbeiter_id']);
-        const bearbeiterCode = bearbeiterTable && chooseColumn(bearbeiterTable.columns, ['kÃ¼rzel','kuerzel']);
+        const bearbeiterCode = bearbeiterTable && chooseColumn(bearbeiterTable.columns, ['kÃ¼rzel','kuerzel','kurzel']);
         const bearbeiterName = bearbeiterTable && chooseColumn(bearbeiterTable.columns, ['name']);
-        const usesBearbeiterRelation = source.table.toLowerCase() === 'auftrag' && /bearbeiter[-_ ]?id/i.test(source.person.name) && bearbeiterTable && bearbeiterId && bearbeiterCode;
+        const usesBearbeiterRelation = source.table.toLowerCase() === 'auftrag'
+            && /bearbeiter[-_ ]?id/i.test(source.person.name)
+            && bearbeiterTable
+            && bearbeiterId
+            && (bearbeiterCode || bearbeiterName);
         const personExpr = usesBearbeiterRelation
-            ? `UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), b.${quoteSqlName(bearbeiterCode.name)}))))`
+            ? `UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), b.${quoteSqlName((bearbeiterCode || bearbeiterId).name)}))))`
             : `UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), a.${quoteSqlName(source.person.name)}))))`;
         const personNameExpr = usesBearbeiterRelation && bearbeiterName
             ? `LTRIM(RTRIM(CONVERT(nvarchar(200), b.${quoteSqlName(bearbeiterName.name)})))`
@@ -611,19 +624,20 @@ fastify.get('/api/sales-report', { preHandler: requireAnyReportSession }, async 
         `);
         const rows = data.recordset.map(row => {
             const unit = row.UnitCode || '0';
-            return { date: row.SaleDate, code: row.PersonCode, amount: Number(row.Amount), document: row.DocumentNumber, cancelled: Boolean(row.Cancelled), unit, unit_name: SALES_UNIT_NAMES[unit] || `Birim ${unit}` };
+            return { date: row.SaleDate, code: row.PersonCode, name: row.PersonName || null, amount: Number(row.Amount), document: row.DocumentNumber, cancelled: Boolean(row.Cancelled), unit, unit_name: SALES_UNIT_NAMES[unit] || `Birim ${unit}` };
         });
         const personCodes = [...new Set(rows.map(row => row.code).filter(Boolean))];
         const staff = {};
         for (const row of data.recordset) if (row.PersonCode && row.PersonName) staff[row.PersonCode] = row.PersonName;
-        if (bearbeiterTable && bearbeiterCode) {
+        if (bearbeiterTable && (bearbeiterCode || bearbeiterId)) {
+            const allStaffCode = quoteSqlName((bearbeiterCode || bearbeiterId).name);
             const allStaffName = bearbeiterName ? `LTRIM(RTRIM(CONVERT(nvarchar(200), ${quoteSqlName(bearbeiterName.name)})))` : `N''`;
             try {
                 const allStaffRows = await dbPool.request().query(`
-                    SELECT UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), ${quoteSqlName(bearbeiterCode.name)})))) AS Code,
+                    SELECT UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), ${allStaffCode})))) AS Code,
                            ${allStaffName} AS FullName
                     FROM ${quoteSqlName(bearbeiterTable.database)}.${quoteSqlName(bearbeiterTable.schema)}.${quoteSqlName(bearbeiterTable.table)}
-                    WHERE NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100), ${quoteSqlName(bearbeiterCode.name)}))), N'') IS NOT NULL
+                    WHERE NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100), ${allStaffCode}))), N'') IS NOT NULL
                 `);
                 for (const person of allStaffRows.recordset) if (person.Code) staff[person.Code] = person.FullName || person.Code;
             } catch (error) {
@@ -631,22 +645,52 @@ fastify.get('/api/sales-report', { preHandler: requireAnyReportSession }, async 
             }
         }
         if (personCodes.length) {
-            const staffCandidates = [...tables.values()].filter(item => /personal|mitarbeiter|benutzer|user/i.test(item.table)).map(item => ({
+            const staffCandidates = [...tables.values()].filter(item => /bearbeiter|personal|mitarbeiter|benutzer|user/i.test(item.table)).map(item => ({
                 ...item,
-                code: chooseColumn(item.columns, ['kÃ¼rzel','kuerzel','kurzzeichen','bearbeiter','benutzername','login','code']),
+                code: chooseColumn(item.columns, ['kÃ¼rzel','kuerzel','kurzel','kurzzeichen','bearbeiter','benutzername','login','code']),
+                id: chooseColumn(item.columns, ['bearbeiter-id','bearbeiter_id','personal-id','personal_id','mitarbeiter-id','mitarbeiter_id','benutzer-id','benutzer_id','id']),
                 firstName: chooseColumn(item.columns, ['vorname','firstname','first_name']),
                 lastName: chooseColumn(item.columns, ['nachname','name1','lastname','last_name','name'])
-            })).filter(item => item.code && (item.firstName || item.lastName));
+            })).filter(item => (item.code || item.id) && (item.firstName || item.lastName));
             for (const staffSource of staffCandidates) {
                 const staffRequest = dbPool.request();
                 personCodes.forEach((code, index) => staffRequest.input(`staff${index}`, sql.NVarChar, code));
                 const codeParams = personCodes.map((_, index) => `@staff${index}`).join(',');
+                const matchColumn = staffSource.code || staffSource.id;
+                const codeSelect = staffSource.code ? `UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), ${quoteSqlName(staffSource.code.name)}))))` : `UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), ${quoteSqlName(staffSource.id.name)}))))`;
                 const firstSelect = staffSource.firstName ? `CONVERT(nvarchar(150), ${quoteSqlName(staffSource.firstName.name)})` : `N''`;
                 const lastSelect = staffSource.lastName ? `CONVERT(nvarchar(150), ${quoteSqlName(staffSource.lastName.name)})` : `N''`;
                 try {
-                    const staffRows = await staffRequest.query(`SELECT UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), ${quoteSqlName(staffSource.code.name)})))) AS Code, LTRIM(RTRIM(CONCAT(${firstSelect}, N' ', ${lastSelect}))) AS FullName FROM ${quoteSqlName(staffSource.database)}.${quoteSqlName(staffSource.schema)}.${quoteSqlName(staffSource.table)} WHERE UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), ${quoteSqlName(staffSource.code.name)})))) IN (${codeParams})`);
+                    const staffRows = await staffRequest.query(`SELECT ${codeSelect} AS Code, LTRIM(RTRIM(CONCAT(${firstSelect}, N' ', ${lastSelect}))) AS FullName FROM ${quoteSqlName(staffSource.database)}.${quoteSqlName(staffSource.schema)}.${quoteSqlName(staffSource.table)} WHERE UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), ${quoteSqlName(matchColumn.name)})))) IN (${codeParams})`);
                     for (const person of staffRows.recordset) if (person.Code && person.FullName) staff[person.Code] = person.FullName;
                     if (Object.keys(staff).length) break;
+                } catch (_) {}
+            }
+            const idStaffCandidates = [...tables.values()].filter(item => /bearbeiter|personal|mitarbeiter|benutzer|user/i.test(item.table)).map(item => ({
+                ...item,
+                id: chooseColumn(item.columns, ['bearbeiter-id','bearbeiter_id','personal-id','personal_id','mitarbeiter-id','mitarbeiter_id','benutzer-id','benutzer_id','id']),
+                code: chooseColumn(item.columns, ['kÃ¼rzel','kuerzel','kurzel','kurzzeichen','bearbeiter','benutzername','login','code']),
+                firstName: chooseColumn(item.columns, ['vorname','firstname','first_name']),
+                lastName: chooseColumn(item.columns, ['nachname','name1','lastname','last_name','name'])
+            })).filter(item => item.id && (item.code || item.firstName || item.lastName));
+            for (const staffSource of idStaffCandidates) {
+                const unresolvedCodes = personCodes.filter(code => !staff[code]);
+                if (!unresolvedCodes.length) break;
+                const staffRequest = dbPool.request();
+                unresolvedCodes.forEach((code, index) => staffRequest.input(`idStaff${index}`, sql.NVarChar, code));
+                const codeParams = unresolvedCodes.map((_, index) => `@idStaff${index}`).join(',');
+                const shortSelect = staffSource.code ? `NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(80), ${quoteSqlName(staffSource.code.name)}))), N'')` : `NULL`;
+                const firstSelect = staffSource.firstName ? `CONVERT(nvarchar(150), ${quoteSqlName(staffSource.firstName.name)})` : `N''`;
+                const lastSelect = staffSource.lastName ? `CONVERT(nvarchar(150), ${quoteSqlName(staffSource.lastName.name)})` : `N''`;
+                try {
+                    const staffRows = await staffRequest.query(`
+                        SELECT UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), ${quoteSqlName(staffSource.id.name)})))) AS Code,
+                               LTRIM(RTRIM(CONCAT(COALESCE(${shortSelect} + N' - ', N''), ${firstSelect}, N' ', ${lastSelect}))) AS FullName
+                        FROM ${quoteSqlName(staffSource.database)}.${quoteSqlName(staffSource.schema)}.${quoteSqlName(staffSource.table)}
+                        WHERE UPPER(LTRIM(RTRIM(CONVERT(nvarchar(100), ${quoteSqlName(staffSource.id.name)})))) IN (${codeParams})
+                    `);
+                    for (const person of staffRows.recordset) if (person.Code && person.FullName) staff[person.Code] = person.FullName;
+                    if (unresolvedCodes.every(code => staff[code])) break;
                 } catch (_) {}
             }
         }

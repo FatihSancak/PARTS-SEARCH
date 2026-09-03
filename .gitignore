@@ -4,3 +4,4 @@ node_modules/
 tmp/
 static/tmp/
 *.log
+db_config.json

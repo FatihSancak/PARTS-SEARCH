@@ -579,6 +579,28 @@ kbd {
   font-weight: 600;
 }
 
+.toggle-all-prices {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 9%, var(--color-surface));
+  color: var(--color-text-primary);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.toggle-all-prices:hover,
+.toggle-all-prices:focus-visible {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+  outline: none;
+}
+
 /* Empty State */
 .empty {
   text-align: center;

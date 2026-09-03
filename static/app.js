@@ -5,6 +5,7 @@ const tableWrap = document.querySelector('#tableWrap');
 const resultsCard = document.querySelector('#resultsCard');
 const count = document.querySelector('#resultCount');
 const meta = document.querySelector('#resultMeta');
+const toggleAllPricesButton = document.querySelector('#toggleAllPrices');
 const dialog = document.querySelector('#detailDialog');
 const gallery = document.querySelector('#galleryDialog');
 const settingsDialog = document.querySelector('#settingsDialog');
@@ -153,6 +154,10 @@ const translations = {
     col_technical: "Teknik bilgi",
     col_stock: "Stok",
     col_price: "Fiyat",
+    show_price: "Fiyatı göster",
+    hide_price: "Fiyatı gizle",
+    show_all_prices: "Tüm fiyatları göster",
+    hide_all_prices: "Tüm fiyatları gizle",
     col_article_ebay: "Artikel / Ebay",
     part_detail: "PARÇA DETAYI",
     part_images: "Parça görselleri",
@@ -275,6 +280,10 @@ const translations = {
     col_technical: "Technische Info",
     col_stock: "Bestand",
     col_price: "Preis",
+    show_price: "Preis anzeigen",
+    hide_price: "Preis ausblenden",
+    show_all_prices: "Alle Preise anzeigen",
+    hide_all_prices: "Alle Preise ausblenden",
     col_article_ebay: "Artikel / Ebay",
     part_detail: "TEILE-DETAIL",
     part_images: "Teilebilder",
@@ -397,6 +406,10 @@ const translations = {
     col_technical: "Technical info",
     col_stock: "Stock",
     col_price: "Price",
+    show_price: "Show price",
+    hide_price: "Hide price",
+    show_all_prices: "Show all prices",
+    hide_all_prices: "Hide all prices",
     col_article_ebay: "Article / Ebay",
     part_detail: "PART DETAIL",
     part_images: "Part images",
@@ -511,6 +524,7 @@ function applyLanguage() {
     quickReset.title=label;
     quickReset.setAttribute('aria-label',label);
   }
+  syncToggleAllPricesButton();
   if (typeof mobileSearchPanelToggle !== 'undefined' && mobileSearchPanelToggle) {
     setMobileSearchPanel(mobileSearchPanelToggle.getAttribute('aria-expanded') === 'true');
   }
@@ -579,8 +593,26 @@ const ebayLink=value=>value?`<a class="ebay-icon-link" href="https://www.ebay.de
 const priceRevealButton = (value, extraClass = '') => {
   const numericValue = Number(value);
   const label = value == null || value === '' ? money(null) : Number.isFinite(numericValue) ? money(numericValue) : String(value);
-  return `<button type="button" class="price result-sale-price price-reveal ${extraClass}" data-price-hidden="true" aria-pressed="false" aria-label="Fiyati goster"><span class="price-mask" aria-hidden="true"></span><span class="price-value">${esc(label)}</span></button>`;
+  return `<button type="button" class="price result-sale-price price-reveal ${extraClass}" data-price-hidden="true" aria-pressed="false" aria-label="${esc(t('show_price'))}"><span class="price-mask" aria-hidden="true"></span><span class="price-value">${esc(label)}</span></button>`;
 };
+function setPriceHidden(button, hidden) {
+  button.dataset.priceHidden = hidden ? 'true' : 'false';
+  button.setAttribute('aria-pressed', String(!hidden));
+  button.setAttribute('aria-label', hidden ? t('show_price') : t('hide_price'));
+}
+function visiblePriceButtons() {
+  return [...resultsCard.querySelectorAll('.price-reveal')].filter(button => button.offsetParent !== null);
+}
+function syncToggleAllPricesButton() {
+  if (!toggleAllPricesButton) return;
+  const buttons = visiblePriceButtons();
+  const hasPrices = buttons.length > 0;
+  const allVisible = hasPrices && buttons.every(button => button.dataset.priceHidden === 'false');
+  toggleAllPricesButton.classList.toggle('hidden', !hasPrices);
+  toggleAllPricesButton.dataset.pricesVisible = allVisible ? 'true' : 'false';
+  toggleAllPricesButton.textContent = t(allVisible ? 'hide_all_prices' : 'show_all_prices');
+  toggleAllPricesButton.setAttribute('aria-pressed', String(allVisible));
+}
 const ebaySearchUrl=partNumber=>{
   const value=normalizePartSearchValue(partNumber);
   if(!value)return '';
@@ -652,6 +684,7 @@ function render(data, fallbackPartNumber='') {
     tableWrap.classList.add('hidden'); 
     empty.classList.remove('hidden'); 
     empty.innerHTML=`<div>⌕</div><h3>${t('no_results')}</h3><p>${t('loosen_filters')}</p>${ebaySearchFallback(fallbackPartNumber)}`; 
+    syncToggleAllPricesButton();
     return; 
   }
   
@@ -683,6 +716,7 @@ function render(data, fallbackPartNumber='') {
 
   renderPagination(data);
   document.querySelectorAll('th.sortable').forEach(th=>{th.classList.toggle('active-sort',th.dataset.sort===data.sort);th.dataset.direction=th.dataset.sort===data.sort?data.dir:''});
+  syncToggleAllPricesButton();
 }
 
 function renderPagination(data){
@@ -844,6 +878,7 @@ function clearRecycleResults(){
   const container=document.querySelector('#recycleResults');
   container.classList.add('hidden');
   container.innerHTML='';
+  syncToggleAllPricesButton();
 }
 
 function renderRecycleResults(result,options={}){
@@ -876,6 +911,7 @@ function renderRecycleResults(result,options={}){
     </div>
   </article>`).join('');
   container.classList.remove('hidden');
+  syncToggleAllPricesButton();
 }
 
 function recycleCandidatesForRow(row){
@@ -1220,10 +1256,8 @@ body.addEventListener('click',e=>{
   if(priceButton){
     e.preventDefault();
     e.stopPropagation();
-    const hidden=priceButton.dataset.priceHidden!=='false';
-    priceButton.dataset.priceHidden=hidden?'false':'true';
-    priceButton.setAttribute('aria-pressed',String(hidden));
-    priceButton.setAttribute('aria-label',hidden?'Fiyati gizle':'Fiyati goster');
+    setPriceHidden(priceButton, priceButton.dataset.priceHidden === 'false');
+    syncToggleAllPricesButton();
     return;
   }
   const imageButton=e.target.closest('.image-button');
@@ -1232,6 +1266,13 @@ body.addEventListener('click',e=>{
   if(labelButton) return window.printPartLabel?.(currentRows[Number(labelButton.dataset.labelIndex)]);
   const b=e.target.closest('.detail-button');
   if(b) return showDetail(currentRows[Number(b.dataset.index)]);
+});
+
+toggleAllPricesButton?.addEventListener('click', () => {
+  const buttons = visiblePriceButtons();
+  const showAll = toggleAllPricesButton.dataset.pricesVisible !== 'true';
+  buttons.forEach(button => setPriceHidden(button, !showAll));
+  syncToggleAllPricesButton();
 });
 
 document.querySelector('#closeDialog').onclick=()=>dialog.close(); 
@@ -1312,6 +1353,7 @@ document.querySelector('#resetButton').onclick=()=>{
   resultsCard.classList.add('hidden');
   tableWrap.classList.add('hidden');
   empty.classList.remove('hidden');
+  syncToggleAllPricesButton();
   setAdvancedOpen(false);
   empty.innerHTML=`<div>⌕</div><h3>${t('ready_to_search')}</h3><p>${t('fill_filters_press_search')}</p>`;
   setWmkatStatus('');

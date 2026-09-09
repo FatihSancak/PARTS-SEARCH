@@ -1,0 +1,14 @@
+.report-auto-lock {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: none;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, .97);
+  color: #fff;
+}
+
+.report-auto-lock.active {
+  display: grid;
+}

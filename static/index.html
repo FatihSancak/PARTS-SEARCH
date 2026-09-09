@@ -7,8 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=6">
-  <link rel="stylesheet" href="/gallery.css?v=7">
+  <link rel="stylesheet" href="/styles.css?v=9">
+  <link rel="stylesheet" href="/gallery.css?v=8">
+  <link rel="stylesheet" href="/ebay-integration.css?v=4">
+  <link rel="stylesheet" href="/search-results-theme.css?v=6">
 </head>
 <body>
   <header class="topbar">
@@ -18,6 +20,7 @@
         <button id="partsMenuBtn" class="menu-button active" type="button" data-i18n="menu_parts">Parçalar</button>
         <button id="vehiclesMenuBtn" class="menu-button" type="button" data-i18n="menu_vehicles">Araçlar</button>
         <button id="kbaMenuBtn" class="menu-button" type="button" data-i18n="menu_kba">KBA Arama</button>
+        <button onclick="window.location.href='/ebay-parcalar'" class="menu-button" type="button" data-i18n="ebay-parts">Ebay Parts</button>
       </nav>
       <button id="settingsBtn" class="topbar-btn" aria-label="Ayarlar" title="Ayarlar / Settings">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
@@ -65,7 +68,7 @@
     </section>
     <div class="search-panel-reopen-slot"><button id="searchPanelReopen" class="search-panel-reopen" type="button" title="Arama filtrelerini yeniden aç"><span aria-hidden="true">☰</span><b>Filtreleri göster</b></button></div>
 
-    <section id="resultsCard" class="results-card hidden">
+    <section id="resultsCard" class="results-card unified-results hidden">
       <div class="results-head">
         <div>
           <span class="eyebrow" data-i18n="results">SONUÇLAR</span>
@@ -74,29 +77,39 @@
         <div class="results-head-actions"><button id="toggleAllPrices" class="toggle-all-prices hidden" type="button" data-i18n="show_all_prices">Tüm fiyatları göster</button><div id="resultMeta" class="result-meta" data-i18n="enter_search_criteria">Arama kriterlerinizi girin</div></div>
       </div>
       <div id="wmkatStatus" class="wmkat-status hidden" role="status" aria-live="polite"></div>
-      <div id="recycleResults" class="recycle-results hidden"></div>
       <div id="emptyState" class="empty">
         <div>⌕</div>
         <h3 data-i18n="ready_to_search">Aramaya hazır</h3>
         <p data-i18n="fill_filters_press_search">Filtreleri doldurun ve “Aramayı Başlat” düğmesine basın.</p>
       </div>
-      <div id="tableWrap" class="table-wrap hidden">
-        <table>
-          <thead>
-            <tr>
-              <th data-i18n="col_image">Görsel</th>
-              <th class="sortable" data-sort="name" data-i18n="col_part">Parça</th>
-              <th class="sortable" data-sort="brand" data-i18n="col_vehicle">Araç</th>
-              <th data-i18n="col_technical">Teknik bilgi</th>
-              <th class="sortable" data-sort="stock" data-i18n="col_stock">Stok</th>
-              <th class="sortable" data-sort="price" data-i18n="col_price">Fiyat</th>
-              <th class="result-actions-heading" aria-label="İşlemler"></th>
-            </tr>
-          </thead>
-          <tbody id="resultsBody"></tbody>
-        </table>
-      </div>
-      <nav id="pagination" class="pagination hidden" aria-label="Sonuç sayfaları"></nav>
+      <section id="recycleInlineResults" class="source-results-panel source-recycle" hidden aria-label="Recycle parça sonuçları">
+        <header><h3>Recycle <span id="recycleInlineQuery"></span></h3></header>
+        <div id="recycleResults" class="recycle-results hidden"></div>
+      </section>
+      <section id="essInlineResults" class="source-results-panel source-ess" hidden aria-label="ESS parça sonuçları">
+        <header><h3>ESS <span id="essInlineQuery"></span></h3></header>
+        <div id="tableWrap" class="table-wrap hidden">
+          <table>
+            <thead>
+              <tr>
+                <th data-i18n="col_image">Görsel</th>
+                <th class="sortable" data-sort="name" data-i18n="col_part">Parça</th>
+                <th class="sortable" data-sort="brand" data-i18n="col_vehicle">Araç</th>
+                <th data-i18n="col_technical">Teknik bilgi</th>
+                <th class="sortable" data-sort="stock" data-i18n="col_stock">Stok</th>
+                <th class="sortable" data-sort="price" data-i18n="col_price">Fiyat</th>
+                <th class="result-actions-heading" aria-label="İşlemler"></th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+        </div>
+        <nav id="pagination" class="pagination hidden" aria-label="Sonuç sayfaları"></nav>
+      </section>
+      <section id="ebayInlineResults" class="source-results-panel source-ebay" hidden aria-label="eBay parça sonuçları">
+        <header><h3>eBay <span id="ebayInlineQuery"></span></h3><div class="ebay-inline-actions"><label id="ebayExactFilterWrap" class="ebay-exact-filter" hidden><input id="ebayExactFilter" type="checkbox" checked><span data-i18n="ebay_exact_part">Tam parça numarası eşleşmesi</span></label><button id="ebayInlineToggle" type="button" aria-expanded="false">eBay sonuçlarını göster</button><a id="ebayInlinePage" href="/ebay-parcalar" target="_blank" rel="noopener noreferrer" data-i18n="ebay_open_separate">Ayrı sayfada aç ↗</a></div></header>
+        <iframe id="ebayResultsFrame" title="eBay parça ilanları" loading="eager" hidden></iframe>
+      </section>
     </section>
   </main>
 
@@ -255,7 +268,8 @@
       <div class="wmkat-overlay-foot"><span id="wmkatElapsed">00:00</span><button id="wmkatCancelButton" type="button">Aramayı iptal et</button></div>
     </div>
   </div>
-  <script src="/app.js?v=part-number-normalize-20260828-2"></script>
+  <script src="/ebay-integration.js?v=4"></script>
+  <script src="/app.js?v=ebay-exact-part-1"></script>
   <script src="/labels.js"></script>
 </body>
 </html>

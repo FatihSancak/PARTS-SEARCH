@@ -5,6 +5,13 @@ const RecycleClient = require('./client');
 async function recycleModule(fastify) {
   const client = new RecycleClient();
   fastify.get('/api/recycle/status', async () => client.status());
+  fastify.get('/api/recycle/parts/:partPk/images', async (request, reply) => {
+    try {
+      return await client.getProductImages(request.params?.partPk);
+    } catch (error) {
+      return reply.status(error.statusCode || 502).send({ error: error.message });
+    }
+  });
   fastify.post('/api/recycle/search', async (request, reply) => {
     const partNumber = String(request.body?.partNumber || '').trim();
     if (!partNumber || partNumber.length > 100) return reply.status(400).send({ error: 'Geçerli bir partNumber gereklidir.' });

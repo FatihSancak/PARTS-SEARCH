@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title data-i18n="page_title">eBay Parçalar · Baytemür</title>
+  <link rel="stylesheet" href="/ebay-parts.css?v=10">
+  <link rel="stylesheet" href="/search-results-theme.css?v=4">
+  <link rel="stylesheet" href="/ebay-embed.css?v=3">
+  <script src="/ebay-parts.js?v=11" defer></script>
+</head>
+<body>
+  <header class="topbar"><a href="/" data-i18n-aria-label="home"><img src="/baytemur-logo.svg" alt="Baytemür Autorecycling" width="180"></a><a class="back" href="/" data-i18n="back_to_search">← Parça aramaya dön</a></header>
+  <main>
+    <!--
+    <section class="intro">
+      <div><span class="eyebrow">ALMANYA · KURUMSAL SATICILAR</span><h1>Parçanın ikinci hayatı.<br><span>Aradığınız parça, eBay’de.</span></h1><p>Almanya konumlu kullanılmış otomobil parçalarını keşfedin.<br>Parça adı, OEM numarası veya araç modeliyle arayın.</p></div>
+      <div class="market"><span class="ebay" aria-label="eBay"><i>e</i><i>b</i><i>a</i><i>y</i></span><span>DE / PARÇA PAZARI</span></div>
+    </section>
+    -->
+    <section class="price-summary" data-i18n-aria-label="price_summary" aria-live="polite">
+      <div class="stat stat-recommended"><span data-i18n="recommended_price">Önerilen rekabetçi fiyat</span><strong id="recommendedPrice">—</strong><small data-i18n="shipping_target">Kargo dâhil hedef</small></div>
+      <div class="stat"><span data-i18n="quick_sale_price">Hızlı satış fiyatı</span><strong id="quickSalePrice">—</strong><small data-i18n="shipping_target">Kargo dâhil hedef</small></div>
+      <div class="stat"><span data-i18n="market_median">Piyasa medyanı</span><strong id="medianPrice">—</strong><small data-i18n="shipping_included">Kargo dâhil</small></div>
+      <div class="stat"><span data-i18n="confidence_level">Güven seviyesi</span><strong id="confidenceLevel">—</strong><small id="priceCount">—</small></div>
+    </section>
+    <form id="searchForm" class="searchbar" role="search">
+      <label class="query"><span data-i18n="query_label">Parça adı veya OEM numarası</span><input id="query" name="q" maxlength="100" data-i18n-placeholder="query_placeholder" placeholder="Örn. Golf 7 Scheinwerfer veya 04L131501" autocomplete="off"></label>
+      <label><span data-i18n="sort_label">Sıralama</span><select id="sort" name="sort"><option value="best" data-i18n="sort_best">En ilgili ilanlar</option><option value="price" data-i18n="sort_price_asc">Parça + kargo: artan</option><option value="-price" data-i18n="sort_price_desc">Parça + kargo: azalan</option><option value="newlyListed" data-i18n="sort_new">Yeni eklenenler</option></select></label>
+      <button class="primary" type="submit"><span data-i18n="search_parts">Parça ara</span> <span aria-hidden="true">↗</span></button>
+    </form>
+    <div class="filters" role="group" data-i18n-aria-label="listing_filters">
+      <label class="filter-option"><input type="checkbox" id="businessFilter" checked> <span data-i18n="business_seller">Kurumsal satıcı</span></label>
+      <label class="filter-option"><input type="checkbox" id="usedFilter" checked> <span data-i18n="used">Kullanılmış</span></label>
+      <label class="filter-option"><input type="checkbox" id="germanyFilter" checked> <span data-i18n="location_germany">Ürün konumu: Almanya</span></label>
+      <label class="filter-option"><input type="checkbox" id="exactFilter"> <span data-i18n="exact_part_number">Tam parça numarası eşleşmesi</span></label>
+      <button id="clearFilters" type="button" data-i18n="clear_filters">Filtreleri kaldır</button>
+      <span data-i18n="market_label">eBay Almanya · Otomobil parçaları ve aksesuarları</span>
+    </div>
+    <div class="results-head"><h2><span data-i18n="current_listings">Güncel ilanlar</span> <span id="count"></span></h2><span id="updated"></span></div>
+    <div id="status" role="status" aria-live="polite"></div>
+    <section id="results" class="grid" data-i18n-aria-label="parts_listings" aria-busy="false"></section>
+    <nav id="pagination" class="pagination" data-i18n-aria-label="result_pages" hidden><button id="previous" type="button" data-i18n="previous">← Önceki</button><span id="pageLabel"></span><button id="next" type="button" data-i18n="next">Sonraki →</button></nav>
+    <footer data-i18n="footer_note">İlanlar eBay’den alınır. Fiyat, kargo ve stok durumunu satın almadan önce eBay’de kontrol edin. Kurumsal satıcı filtresi eBay hesap türüne, Almanya filtresi ürünün bulunduğu ülkeye dayanır.</footer>
+  </main>
+  <dialog id="ebayGallery" class="ebay-gallery">
+    <header><strong id="ebayGalleryTitle"></strong><button id="ebayGalleryClose" type="button" data-i18n-aria-label="close">✕</button></header>
+    <div class="ebay-gallery-stage"><button id="ebayGalleryPrev" type="button" data-i18n-aria-label="previous_image">‹</button><img id="ebayGalleryImage" data-i18n-alt="listing_image" alt="İlan görseli"><button id="ebayGalleryNext" type="button" data-i18n-aria-label="next_image">›</button></div>
+    <p id="ebayGalleryCounter"></p>
+  </dialog>
+</body>
+</html>

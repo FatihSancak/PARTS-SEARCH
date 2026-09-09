@@ -48,12 +48,13 @@ const chooseColumn = (columns, patterns) => {
 };
 
 const SALES_UNIT_NAMES = {
-    '0': 'Genel / AtanmamÄ±ÅŸ',
-    '1': 'German Car PartÂ´s',
-    '2': 'EU Car PartÂ´s',
-    '3': 'Japan Car PartÂ´s',
-    '4': 'BaytemÃ¼r Autoteile GmbH',
-    '5': 'Internet Business'
+    '0': 'Genel / Atanmamış',
+    '1': 'German Car Part´s',
+    '2': 'EU Car Part´s',
+    '3': 'Japan Car Part´s',
+    '4': 'Baytemür Autoteile GmbH',
+    '5': 'Internet Business',
+    '20': 'Internet Business'
 };
 
 const SEARCH_FIELDS = {
@@ -309,6 +310,7 @@ fastify.register(require('./modules/wmkat'), {
     })
 });
 fastify.register(require('./modules/recycle'));
+fastify.register(require('./modules/ebay'));
 
 // API Routes
 

@@ -1,0 +1,355 @@
+/* Shared visual language for ESS, Recycle and eBay search results. */
+:root {
+  --result-card-radius: 12px;
+  --result-card-border: #dce3e8;
+  --result-card-surface: #fff;
+  --result-card-muted: #f6f8fa;
+  --result-card-text: #182b35;
+  --result-card-secondary: #637784;
+  --result-card-shadow: 0 4px 14px rgba(18, 35, 48, .055);
+  --result-card-gap: 9px;
+  --result-image-width: 88px;
+  --result-image-height: 76px;
+  --result-image-radius: 9px;
+  --result-title-size: 14px;
+  --result-meta-size: 11px;
+  --result-label-size: 9px;
+  --result-price-size: 18px;
+  --result-title-line-height: 1.35;
+  --result-meta-line-height: 1.45;
+}
+
+/* ESS */
+#resultsCard {
+  --result-accent: var(--color-primary, #ef3e32);
+  --result-accent-soft: color-mix(in srgb, var(--result-accent) 9%, var(--color-surface, #fff));
+}
+
+#resultsCard .table-wrap {
+  padding: 8px;
+  background: var(--color-bg, #f5f7f9);
+}
+
+#resultsCard table {
+  border-collapse: separate;
+  border-spacing: 0 var(--result-card-gap);
+}
+
+#resultsCard thead th {
+  border-bottom: 0;
+  background: var(--color-surface-hover, #f4f6f8);
+}
+
+#resultsCard tbody tr:not(.wmkat-reference-heading) td {
+  border-top: 1px solid var(--color-border, var(--result-card-border));
+  border-bottom: 1px solid var(--color-border, var(--result-card-border));
+  background: var(--color-surface, var(--result-card-surface));
+  box-shadow: var(--result-card-shadow);
+}
+
+#resultsCard tbody tr:not(.wmkat-reference-heading) td:first-child {
+  border-left: 4px solid var(--result-accent);
+  border-radius: var(--result-card-radius) 0 0 var(--result-card-radius);
+}
+
+#resultsCard tbody tr:not(.wmkat-reference-heading) td:last-child {
+  border-right: 1px solid var(--color-border, var(--result-card-border));
+  border-radius: 0 var(--result-card-radius) var(--result-card-radius) 0;
+}
+
+#resultsCard tbody tr:not(.wmkat-reference-heading):hover td {
+  background: var(--result-accent-soft);
+  border-color: color-mix(in srgb, var(--result-accent) 34%, var(--color-border, var(--result-card-border)));
+}
+
+/* One image canvas across ESS, Recycle and eBay. */
+#resultsCard th:first-child,
+#resultsCard tbody tr:not(.wmkat-reference-heading) td:first-child {
+  width: 104px;
+  min-width: 104px;
+  max-width: 104px;
+}
+
+#resultsCard td:first-child .part-thumb,
+#resultsCard td:first-child .no-image,
+#resultsCard .recycle-image-button,
+body .grid .photo {
+  width: var(--result-image-width) !important;
+  height: var(--result-image-height) !important;
+  min-width: var(--result-image-width) !important;
+  min-height: var(--result-image-height) !important;
+  max-width: var(--result-image-width) !important;
+  max-height: var(--result-image-height) !important;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--result-accent) 30%, var(--color-border, var(--result-card-border))) !important;
+  border-radius: var(--result-image-radius);
+  background: color-mix(in srgb, var(--result-accent) 4%, var(--color-surface, var(--result-card-surface))) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .5);
+}
+
+#resultsCard td:first-child .image-button {
+  width: var(--result-image-width) !important;
+  min-width: var(--result-image-width) !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+#resultsCard td:first-child .part-thumb,
+#resultsCard td:first-child .no-image img,
+#resultsCard .recycle-image-button img,
+body .grid .photo img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 4px;
+  object-fit: contain;
+  object-position: center;
+  background: transparent;
+}
+
+#resultsCard .recycle-image-button {
+  flex: 0 0 var(--result-image-width);
+  align-self: center;
+  position: relative;
+  padding: 0;
+}
+
+#resultsCard .recycle-image-button > img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  box-sizing: border-box;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center;
+}
+
+#resultsCard .recycle-image-button > img[hidden] { display: none !important; }
+#resultsCard button.recycle-image-button.has-image:hover > img { transform: none; }
+#resultsCard .recycle-image-button > .recycle-image-placeholder { position: relative; z-index: 1; }
+#resultsCard .recycle-image-button > small { z-index: 2; }
+
+#resultsCard td:first-child .image-button,
+#resultsCard .recycle-image-button,
+body .grid .photo {
+  margin-inline: auto;
+}
+
+#resultsCard .recycle-image-button.no-recycle-image img { padding: 12px; }
+
+/* Recycle */
+#resultsCard .recycle-results {
+  --result-accent: #168052;
+  --result-accent-soft: #f0fbf5;
+  gap: var(--result-card-gap);
+  padding: 8px;
+  margin: 6px 10px 14px;
+  border-radius: 14px;
+  background: var(--color-bg, #f5f7f9);
+}
+
+#resultsCard .recycle-result-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--result-accent) 34%, var(--color-border, var(--result-card-border)));
+  border-left: 4px solid var(--result-accent);
+  border-radius: var(--result-card-radius);
+  background: var(--result-accent-soft);
+  box-shadow: var(--result-card-shadow);
+}
+
+/* Shared information hierarchy */
+#resultsCard .part-name,
+#resultsCard .recycle-result-card h3,
+body .grid .card h3 {
+  margin-top: 0;
+  font-size: var(--result-title-size);
+  font-weight: 800;
+  line-height: var(--result-title-line-height);
+  letter-spacing: 0;
+}
+
+#resultsCard .part-name { color: var(--color-text-primary, var(--result-card-text)); }
+#resultsCard .recycle-result-card h3 { color: #183f2d; }
+body .grid .card h3 { color: var(--result-card-text); }
+
+#resultsCard .sub,
+#resultsCard .recycle-result-grid strong,
+#resultsCard .recycle-oe,
+body .grid .seller,
+body .grid .seller-feedback {
+  font-size: var(--result-meta-size);
+  line-height: var(--result-meta-line-height);
+}
+
+#resultsCard .result-tech-line > span,
+#resultsCard .recycle-result-grid small,
+#resultsCard .recycle-result-side > small {
+  font-size: var(--result-label-size);
+  font-weight: 800;
+  letter-spacing: .045em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+#resultsCard .result-tech-line > strong,
+#resultsCard .recycle-result-grid strong {
+  font-size: var(--result-meta-size);
+  font-weight: 800;
+}
+
+#resultsCard .result-sale-price,
+#resultsCard .recycle-price.result-sale-price,
+body .grid .price {
+  font-size: var(--result-price-size) !important;
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+}
+
+#resultsCard .recycle-result-card h3 { margin-bottom: 8px; }
+#resultsCard .recycle-result-top { margin-bottom: 7px; }
+#resultsCard .recycle-result-grid { gap: 8px; }
+#resultsCard .recycle-result-grid > div { padding: 8px 9px; }
+body .grid .seller { margin-top: 6px; }
+body .grid .shipping,
+body .grid .total-price { font-size: 10px; line-height: var(--result-meta-line-height); }
+
+/* eBay (standalone and embedded) */
+body {
+  --result-accent: #0064d2;
+  --result-accent-soft: #f1f7ff;
+}
+
+body .grid {
+  gap: var(--result-card-gap);
+  padding: 8px;
+  border-radius: 14px;
+  background: #f5f7f9;
+}
+
+body .grid .card {
+  position: relative;
+  overflow: hidden;
+  min-height: 86px;
+  border: 1px solid color-mix(in srgb, var(--result-accent) 28%, var(--result-card-border));
+  border-left: 4px solid var(--result-accent);
+  border-radius: var(--result-card-radius);
+  background: var(--result-card-surface);
+  box-shadow: var(--result-card-shadow);
+}
+
+body .grid .card:hover {
+  border-color: color-mix(in srgb, var(--result-accent) 55%, var(--result-card-border));
+  background: var(--result-accent-soft);
+}
+
+body .grid .card h3,
+body .grid .card .listing { color: var(--result-card-text); }
+body .grid .card .seller,
+body .grid .card .seller-feedback,
+body .grid .card .shipping { color: var(--result-card-secondary); }
+body .grid .card .price,
+body .grid .card .seller-link,
+body .grid .card .total-price { color: var(--result-accent); }
+
+body .price-summary {
+  border-top: 4px solid var(--result-accent);
+  border-radius: var(--result-card-radius);
+  box-shadow: var(--result-card-shadow);
+}
+
+body .price-summary .stat strong { color: var(--result-accent); }
+
+@media (max-width: 760px) {
+  #resultsCard .table-wrap,
+  body .grid { padding: 5px; }
+  #resultsCard .recycle-results { margin-inline: 6px; padding: 5px; }
+  #resultsCard .recycle-image-button,
+  #resultsCard .recycle-image-button img {
+    width: var(--result-image-width);
+    height: var(--result-image-height);
+    min-height: var(--result-image-height);
+  }
+  #resultsCard .recycle-image-button.no-recycle-image { display: grid; }
+}
+
+/* Unified source panels: source name + searched number + results in one card. */
+#resultsCard .source-results-panel {
+  --source-accent: var(--color-primary, #e63b2e);
+  --source-accent-soft: color-mix(in srgb, var(--source-accent) 7%, var(--color-surface));
+  margin: 14px 10px 18px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--source-accent) 28%, var(--color-border));
+  border-radius: var(--result-card-radius);
+  background: var(--color-surface);
+  box-shadow: var(--result-card-shadow);
+  text-align: left;
+}
+
+#resultsCard .source-results-panel.source-recycle { --source-accent: #168052; }
+#resultsCard .source-results-panel.source-ebay { --source-accent: #0064d2; }
+
+#resultsCard .source-results-panel > header {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-left: 4px solid var(--source-accent);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--source-accent-soft);
+}
+
+#resultsCard .source-results-panel > header h3 {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  margin: 0;
+  color: var(--source-accent);
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+#resultsCard .source-results-panel > header h3 span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#resultsCard #essInlineResults .table-wrap {
+  margin: 0;
+  border-radius: 0;
+}
+
+#resultsCard #recycleInlineResults .recycle-results {
+  margin: 0;
+  padding: 8px;
+  border-radius: 0;
+}
+
+#resultsCard #recycleInlineResults .recycle-result-card:first-child { margin-top: 0; }
+#resultsCard #ebayInlineResults > header h3,
+#resultsCard #ebayInlinePage { color: var(--source-accent); }
+
+@media (max-width: 600px) {
+  #resultsCard .source-results-panel { margin-inline: 6px; }
+  #resultsCard .source-results-panel > header { min-height: 44px; padding: 9px 11px; }
+  #resultsCard .source-results-panel > header h3 { gap: 8px; font-size: 14px; }
+  #resultsCard .source-results-panel > header h3 span { font-size: 11px; }
+}

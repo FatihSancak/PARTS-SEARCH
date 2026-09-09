@@ -9,11 +9,11 @@
     const max = Math.max(1, ...units.map(unit => Math.abs(unit.total)));
 
     $('unitsChart').innerHTML = units.map(unit => `
-      <div class="bar-row unit-row">
+      <button class="bar-row unit-row unit-link${unit.code === selectedUnit ? ' active' : ''}" data-unit="${esc(unit.code)}" type="button">
         <span class="bar-name"><b>${esc(unit.name)}</b><small>${num.format(unit.count)} işlem · ${total ? (unit.total / total * 100).toFixed(1) : 0}% pay</small></span>
         <span class="bar-track"><span class="bar-fill unit-fill" style="width:${Math.abs(unit.total) / max * 100}%"></span></span>
         <span class="bar-value">${euro.format(unit.total)}</span>
-      </div>`).join('') || 'Kayıt yok';
+      </button>`).join('') || 'Kayıt yok';
 
     $('unitsBody').innerHTML = units.map(unit => `
       <tr><td><b>${esc(unit.name)}</b></td><td>${num.format(unit.count)}</td><td>${euro.format(unit.total)}</td><td>${euro.format(unit.count ? unit.total / unit.count : 0)}</td><td>${total ? (unit.total / total * 100).toFixed(1) : 0}%</td></tr>`).join('');

@@ -3,6 +3,10 @@ const body = document.querySelector('#resultsBody');
 const empty = document.querySelector('#emptyState');
 const tableWrap = document.querySelector('#tableWrap');
 const resultsCard = document.querySelector('#resultsCard');
+const essInlineResults = document.querySelector('#essInlineResults');
+const recycleInlineResults = document.querySelector('#recycleInlineResults');
+const essInlineQuery = document.querySelector('#essInlineQuery');
+const recycleInlineQuery = document.querySelector('#recycleInlineQuery');
 const count = document.querySelector('#resultCount');
 const meta = document.querySelector('#resultMeta');
 const toggleAllPricesButton = document.querySelector('#toggleAllPrices');
@@ -19,6 +23,8 @@ let resultPage = 1, resultSort = 'newest', resultDirection = 'desc';
 let restoringHistory = false;
 let recycleLocalLookupToken = 0;
 let recycleLocalLookupActive = false;
+let recycleDirectLookupToken = 0;
+let recycleDirectLookupActive = false;
 const searchStateKey = 'baytemuer-search-state';
 const wmkatAlternativesCache = new Map();
 let wmkatAbortController = null;
@@ -31,6 +37,14 @@ let activeAppView = ['parts', 'vehicles', 'labels'].includes(new URLSearchParams
 const unitSelect = document.querySelector('#unitSelect');
 const currentUnit = () => unitSelect.value || '';
 const isEuUnit = () => /^eu\s/i.test(String(currentUnit()).trim());
+const currentResultQuery = () => {
+  const partNumber = String(form.elements.part_number?.value || '').trim();
+  if (partNumber) return partNumber;
+  return ['designation', 'brand', 'model', 'article']
+    .map(name => String(form.elements[name]?.value || '').trim())
+    .filter(Boolean)
+    .join(' · ');
+};
 const advancedToggle = document.querySelector('#advancedFiltersToggle');
 const advancedFilters = document.querySelector('#advancedFilters');
 const mobileSearchPanelToggle = document.querySelector('#mobileSearchPanelToggle');
@@ -158,6 +172,10 @@ const translations = {
     hide_price: "Fiyatı gizle",
     show_all_prices: "Tüm fiyatları göster",
     hide_all_prices: "Tüm fiyatları gizle",
+    ebay_show_results: "eBay sonuçlarını göster",
+    ebay_hide_results: "eBay sonuçlarını gizle",
+    ebay_open_separate: "Ayrı sayfada aç ↗",
+    ebay_exact_part: "Tam parça numarası eşleşmesi",
     col_article_ebay: "Artikel / Ebay",
     part_detail: "PARÇA DETAYI",
     part_images: "Parça görselleri",
@@ -284,6 +302,10 @@ const translations = {
     hide_price: "Preis ausblenden",
     show_all_prices: "Alle Preise anzeigen",
     hide_all_prices: "Alle Preise ausblenden",
+    ebay_show_results: "eBay-Ergebnisse anzeigen",
+    ebay_hide_results: "eBay-Ergebnisse ausblenden",
+    ebay_open_separate: "Auf eigener Seite öffnen ↗",
+    ebay_exact_part: "Exakte Teilenummer",
     col_article_ebay: "Artikel / Ebay",
     part_detail: "TEILE-DETAIL",
     part_images: "Teilebilder",
@@ -410,6 +432,10 @@ const translations = {
     hide_price: "Hide price",
     show_all_prices: "Show all prices",
     hide_all_prices: "Hide all prices",
+    ebay_show_results: "Show eBay results",
+    ebay_hide_results: "Hide eBay results",
+    ebay_open_separate: "Open on separate page ↗",
+    ebay_exact_part: "Exact part number match",
     col_article_ebay: "Article / Ebay",
     part_detail: "PART DETAIL",
     part_images: "Part images",
@@ -525,6 +551,7 @@ function applyLanguage() {
     quickReset.setAttribute('aria-label',label);
   }
   syncToggleAllPricesButton();
+  window.EbayResults?.setLanguage(currentLanguage);
   if (typeof mobileSearchPanelToggle !== 'undefined' && mobileSearchPanelToggle) {
     setMobileSearchPanel(mobileSearchPanelToggle.getAttribute('aria-expanded') === 'true');
   }
@@ -631,6 +658,7 @@ const locationBadge=value=>{if(value==null||value==='')return `<span class="loca
 const carIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align: -1px; margin-right: 4px;"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"></path><circle cx="7" cy="17" r="2"></circle><path d="M9 17h6"></path><circle cx="17" cy="17" r="2"></circle></svg>`;
 
 const normalizePartSearchValue=value=>String(value||'').toUpperCase().replace(/Ä/g,'A').replace(/Ö/g,'O').replace(/Ü/g,'U').replace(/ß/g,'SS').replace(/İ/g,'I').replace(/İ/g,'I').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9]/g,'');
+const normalizeRecyclePartSearchValue=value=>String(value||'').toUpperCase().replace(/Ä/g,'A').replace(/Ö/g,'O').replace(/Ü/g,'U').replace(/ß/g,'SS').replace(/İ/g,'I').replace(/İ/g,'I').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9*]/g,'');
 
 function stockQuantity(value) {
   const numeric = Number(String(value ?? 0).replace(',', '.').replace(/[^0-9.-]/g, ''));
@@ -677,18 +705,22 @@ async function health() {
 
 function render(data, fallbackPartNumber='') {
   currentRows = data.rows;
+  empty.classList.remove('compact-no-results');
   count.textContent = new Intl.NumberFormat(currentLanguage === 'en' ? 'en-US' : 'tr-TR').format(data.count);
   meta.textContent = `${data.page} / ${data.pages} · ${data.shown} / ${data.count}`;
   
   if (!data.rows.length) { 
     tableWrap.classList.add('hidden'); 
+    essInlineResults.hidden = true;
     empty.classList.remove('hidden'); 
-    empty.innerHTML=`<div>⌕</div><h3>${t('no_results')}</h3><p>${t('loosen_filters')}</p>${ebaySearchFallback(fallbackPartNumber)}`; 
+    empty.innerHTML=`<div>⌕</div><h3>${t('no_results')}</h3><p>${t('loosen_filters')}</p>`;
     syncToggleAllPricesButton();
     return; 
   }
   
   empty.classList.add('hidden'); 
+  essInlineQuery.textContent = currentResultQuery() || fallbackPartNumber;
+  essInlineResults.hidden = false;
   tableWrap.classList.remove('hidden');
   
   body.innerHTML = data.rows.map((r,i) => `${data.wmkatGrouped && (i===0 || data.rows[i-1].WmkatReference!==r.WmkatReference || data.rows[i-1].WmkatGroup!==r.WmkatGroup) ? `<tr class="wmkat-reference-heading"><td colspan="7"><span>WMKAT Referenznummer</span><strong>${esc(r.WmkatReference)}</strong><small>${esc(r.WmkatGroup)} · ${data.rows.filter(item=>item.WmkatReference===r.WmkatReference&&item.WmkatGroup===r.WmkatGroup).length} stoklu ürün</small></td></tr>` : ''}<tr>
@@ -737,10 +769,15 @@ function renderPagination(data){
 }
 
 async function runSearch(event, addToHistory = true) {
+  const ebayRun = window.EbayResults.clear();
   event?.preventDefault(); 
-  if(recycleLocalLookupActive)fetch('/api/recycle/cancel',{method:'POST'}).catch(()=>{});
+  if(recycleLocalLookupActive||recycleDirectLookupActive)fetch('/api/recycle/cancel',{method:'POST'}).catch(()=>{});
   recycleLocalLookupToken++;
+  recycleDirectLookupToken++;
+  recycleLocalLookupActive=false;
+  recycleDirectLookupActive=false;
   clearRecycleResults();
+  essInlineResults.hidden = true;
   if(event?.type==='submit') {
     resultPage=1;
     document.querySelector('#hiddenVehicleInput').value = '';
@@ -751,8 +788,9 @@ async function runSearch(event, addToHistory = true) {
   button.innerHTML=t('loading');
 
   const partNumberInput=form.elements.part_number;
+  const recyclePartNumber=normalizeRecyclePartSearchValue(partNumberInput.value);
   const normalizedPartNumber=normalizePartSearchValue(partNumberInput.value);
-  if(partNumberInput.value&&normalizedPartNumber!==partNumberInput.value.trim())partNumberInput.value=normalizedPartNumber;
+  if(partNumberInput.value&&!recyclePartNumber.includes('*')&&normalizedPartNumber!==partNumberInput.value.trim())partNumberInput.value=normalizedPartNumber;
   
   const params = new URLSearchParams(new FormData(form)); 
   if(normalizedPartNumber)params.set('part_number',normalizedPartNumber);
@@ -761,6 +799,7 @@ async function runSearch(event, addToHistory = true) {
   params.set('page',resultPage);
   params.set('sort',resultSort);
   params.set('dir',resultDirection);
+  const ebayQuery = normalizedPartNumber || ['designation','brand','model'].map(name => String(form.elements[name]?.value || '').trim()).filter(Boolean).join(' ');
   
   try { 
     const response=await fetch('/api/search?'+params); 
@@ -769,13 +808,15 @@ async function runSearch(event, addToHistory = true) {
     document.querySelector('.search-layout').classList.add('has-results'); 
     resultsCard.classList.remove('hidden'); 
     const requestedPartNumber=normalizePartSearchValue(form.elements.part_number.value);
+    const requestedRecyclePartNumber=recyclePartNumber||requestedPartNumber;
     render(data, requestedPartNumber);
     if(data.count===0&&shouldRunExternalPartSearch()){
-      await runWmkatAlternatives(requestedPartNumber,data);
+      await runWmkatAlternatives(requestedRecyclePartNumber,data);
     }else{
       setWmkatStatus('');
-      if(data.rows?.length)enrichLocalResultsWithRecycle(data);
+      if(data.rows?.length)enrichFoundResultsWithRecycle(requestedRecyclePartNumber,data);
     }
+    window.EbayResults.load(ebayQuery, ebayRun, Boolean(String(form.elements.part_number?.value || '').trim()));
     if (!restoringHistory) saveSearchState(addToHistory);
   }
   catch(error){ 
@@ -878,20 +919,26 @@ function clearRecycleResults(){
   const container=document.querySelector('#recycleResults');
   container.classList.add('hidden');
   container.innerHTML='';
+  recycleInlineResults.hidden=true;
   syncToggleAllPricesButton();
 }
 
 function renderRecycleResults(result,options={}){
   const container=document.querySelector('#recycleResults');
-  currentRows=[];
-  count.textContent=result.count;
+  empty.classList.remove('compact-no-results');
+  if(!options.keepTable){
+    currentRows=[];
+    count.textContent=result.count;
   meta.textContent=currentLanguage==='de'?'Recycle-Ergebnisse':currentLanguage==='en'?'Recycle results':'Recycle sonuçları';
+  }
   empty.classList.add('hidden');
   if(!options.keepTable){
     tableWrap.classList.add('hidden');
+    essInlineResults.hidden=true;
     document.querySelector('#pagination').classList.add('hidden');
   }
   container.innerHTML=result.results.map((item,index)=>`<article class="recycle-result-card">
+    ${item.hasImages&&item.partPk?`<button class="recycle-image-button is-loading" type="button" data-recycle-image-part="${esc(item.partPk)}" data-recycle-image-title="${esc(item.productName||item.title)}" aria-label="${t('part_images')}"><img alt="${esc(item.productName||item.title)}" loading="lazy" hidden><span class="recycle-image-placeholder" aria-hidden="true">⌕</span><small>${t('images_count')}</small></button>`:`<div class="recycle-image-button no-recycle-image" title="${t('no_image')}"><img src="/baytemur-placeholder.png" alt="Baytemür"><small>${t('no_image')}</small></div>`}
     <div class="recycle-result-main">
       <div class="recycle-result-top"><span class="recycle-source-badge">Recycle</span><span class="recycle-code">#${esc(item.code||index+1)}</span><span class="recycle-state">${esc(item.status)}</span></div>
       <h3>${esc(item.productName||item.title)}</h3>
@@ -911,7 +958,64 @@ function renderRecycleResults(result,options={}){
     </div>
   </article>`).join('');
   container.classList.remove('hidden');
+  recycleInlineQuery.textContent=currentResultQuery();
+  recycleInlineResults.hidden=false;
+  hydrateRecycleImages(container);
   syncToggleAllPricesButton();
+}
+
+function hydrateRecycleImages(container){
+  const buttons=[...container.querySelectorAll('[data-recycle-image-part]')];
+  if(!buttons.length)return;
+  const load=async button=>{
+    if(button.dataset.imageRequested)return;
+    button.dataset.imageRequested='1';
+    try{
+      const response=await fetch(`/api/recycle/parts/${encodeURIComponent(button.dataset.recycleImagePart)}/images`);
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.error||'Recycle image error');
+      if(!data.images?.length)throw new Error('No image');
+      const image=button.querySelector('img');
+      let usedFullImage=false;
+      image.onload=()=>{
+        image.hidden=false;
+        button.classList.remove('is-loading');
+        button.classList.add('has-image');
+        button.querySelector('small').textContent=`${data.count} ${t('images_count')}`;
+      };
+      image.onerror=()=>{
+        if(!usedFullImage&&data.images[0]){
+          usedFullImage=true;
+          image.src=data.images[0];
+          return;
+        }
+        image.hidden=true;
+        button.classList.remove('is-loading','has-image');
+        button.classList.add('no-recycle-image');
+        button.querySelector('small').textContent=t('no_image');
+      };
+      image.src=data.thumbnail||data.images[0];
+      button.addEventListener('click',()=>{
+        if(button.classList.contains('has-image'))window.openExternalGallery?.(button.dataset.recycleImageTitle,data.images);
+      });
+    }catch(_){
+      button.classList.remove('is-loading');
+      button.classList.add('no-recycle-image');
+      button.querySelector('small').textContent=t('no_image');
+    }
+  };
+  // Always show the first available Recycle photo immediately. Remaining
+  // thumbnails stay lazy-loaded to keep searches responsive.
+  load(buttons[0]);
+  const remaining=buttons.slice(1);
+  if(!remaining.length)return;
+  if(!('IntersectionObserver' in window)){remaining.forEach(load);return;}
+  const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{
+    if(!entry.isIntersecting)return;
+    observer.unobserve(entry.target);
+    load(entry.target);
+  }),{rootMargin:'240px'});
+  remaining.forEach(button=>observer.observe(button));
 }
 
 function recycleCandidatesForRow(row){
@@ -931,11 +1035,44 @@ function recycleCandidatesForRow(row){
 function renderInlineRecycleMatch(index,match){
   const slot=document.querySelector(`[data-recycle-index="${index}"]`);
   if(!slot)return;
-  const first=match.results?.[0];
-  if(!first)return;
-  const extra=match.count>1?` +${match.count-1}`:'';
-  const source=first.matchSource?` · ${esc(first.matchSource)}`:'';
-  slot.innerHTML=`<div class="recycle-inline-match"><b>up2date</b><a href="${esc(first.url)}" target="_blank" rel="noopener noreferrer">${esc(first.code||first.matchedReference||'Link')}${extra}</a><span>${source}</span></div>`;
+  const products=Array.isArray(match.results)?match.results.filter(item=>item&&item.url):[];
+  if(!products.length)return;
+  slot.innerHTML=`<div class="recycle-inline-list">${products.map((item,productIndex)=>{
+    const label=item.code||item.matchedReference||`Recycle ${productIndex+1}`;
+    return `<div class="recycle-inline-match"><b>up2date</b><a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a></div>`;
+  }).join('')}${match.count>products.length?`<small class="recycle-inline-more">+${match.count-products.length} daha</small>`:''}</div>`;
+}
+
+async function enrichFoundResultsWithRecycle(partNumber,data){
+  const directToken=++recycleDirectLookupToken;
+  const query=normalizeRecyclePartSearchValue(partNumber);
+  recycleDirectLookupActive=Boolean(normalizePartSearchValue(query)&&shouldRunExternalPartSearch());
+  try{
+    if(recycleDirectLookupActive){
+      setWmkatStatus(currentLanguage==='de'?'Lokale Treffer gefunden - Recycle wird gesucht...':currentLanguage==='en'?'Local result(s) found - searching Recycle...':'ESS sonucu bulundu - Recycle aranıyor...');
+      const response=await fetch('/api/recycle/search',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({partNumber:query})
+      });
+      const result=await response.json();
+      if(directToken!==recycleDirectLookupToken)return;
+      if(!response.ok)throw new Error(result.error||'Recycle search error');
+      if(result.results?.length){
+        renderRecycleResults(result,{keepTable:true});
+        setWmkatStatus(currentLanguage==='de'?`Lokale Treffer + ${result.count} Recycle-Produkt(e)`:currentLanguage==='en'?`Local result(s) + ${result.count} Recycle product(s)`:`ESS sonucu + ${result.count} Recycle ürünü`,'success');
+      }else{
+        setWmkatStatus(currentLanguage==='de'?'Lokale Treffer gefunden - kein Produkt in Recycle':currentLanguage==='en'?'Local result(s) found - no product in Recycle':'ESS sonucu bulundu - Recycle içinde ürün bulunamadı','empty');
+      }
+    }
+  }catch(error){
+    if(directToken!==recycleDirectLookupToken)return;
+    console.error('Recycle direct result enrichment:',error);
+    setWmkatStatus(currentLanguage==='de'?'Lokale Treffer gefunden - Recycle nicht verfügbar':currentLanguage==='en'?'Local result(s) found - Recycle unavailable':'ESS sonucu bulundu - Recycle kullanılamıyor','empty');
+  }finally{
+    if(directToken===recycleDirectLookupToken)recycleDirectLookupActive=false;
+  }
+  if(directToken===recycleDirectLookupToken)enrichLocalResultsWithRecycle(data);
 }
 
 async function enrichLocalResultsWithRecycle(data){
@@ -975,7 +1112,7 @@ async function runWmkatAlternatives(partNumber,originalData){
   showWmkatOverlay(partNumber);
   wmkatAbortController=new AbortController();
   try{
-    const cacheKey=`${currentUnit()}\u0000${partNumber.replace(/[^A-Za-z0-9]/g,'').toUpperCase()}`;
+    const cacheKey=`${currentUnit()}\u0000${normalizeRecyclePartSearchValue(partNumber)}`;
     let result=wmkatAlternativesCache.get(cacheKey);
     if(!result){
       let recycle=null;
@@ -1045,6 +1182,7 @@ async function runWmkatAlternatives(partNumber,originalData){
           ?`${referenceResults?.searchedReferences||0} references checked · no product found${isEuUnit()?' (Recycle + EU Parts)':''}`
           :`${referenceResults?.searchedReferences||0} referans kontrol edildi · ürün bulunamadı${isEuUnit()?' (Recycle + EU Teile)':''}`;
       setWmkatStatus(message,'empty');
+      empty.classList.add('compact-no-results');
       return;
     }
     if(hasEuLocal){
@@ -1062,7 +1200,10 @@ async function runWmkatAlternatives(partNumber,originalData){
     if(error.name==='AbortError'||wmkatCancelled)return;
     setWmkatStatus(currentLanguage==='de'?'WMKAT-Suche fehlgeschlagen':currentLanguage==='en'?'WMKAT search failed':'WMKAT araması başarısız','error');
     console.error('WMKAT alternative search:',error);
-    if(!originalData.rows.length)showToast(`WMKAT: ${error.message}`);
+    if(!originalData.rows.length){
+      empty.classList.add('compact-no-results');
+      showToast(`WMKAT: ${error.message}`);
+    }
   }finally{
     wmkatAbortController=null;
     if(!wmkatCancelled)hideWmkatOverlay();
@@ -1117,7 +1258,7 @@ function showDetail(row){
 
 async function renderGallery(direction=0){
   const item=galleryRows[galleryIndex],image=document.querySelector('#galleryImage');
-  const nextSrc=`/api/parts/${galleryPartId}/images/${item.Picture_ID}?unit=${encodeURIComponent(currentUnit())}`;
+  const nextSrc=item.externalUrl || `/api/parts/${galleryPartId}/images/${item.Picture_ID}?unit=${encodeURIComponent(currentUnit())}`;
   const token=++galleryTransitionToken;
   resetGalleryZoom();
   const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1170,7 +1311,7 @@ async function renderGallery(direction=0){
     [-1,1].forEach(step=>{
       const nearby=galleryRows[(galleryIndex+step+galleryRows.length)%galleryRows.length];
       const preload=new Image();
-      preload.src=`/api/parts/${galleryPartId}/images/${nearby.Picture_ID}?unit=${encodeURIComponent(currentUnit())}`;
+      preload.src=nearby.externalUrl || `/api/parts/${galleryPartId}/images/${nearby.Picture_ID}?unit=${encodeURIComponent(currentUnit())}`;
     });
   }
 }
@@ -1211,6 +1352,16 @@ function resetGalleryZoom() {
   galleryZoom = 1; galleryPanX = 0; galleryPanY = 0; galleryPanStart = null;
   if (document.querySelector('#galleryZoomReset')) applyGalleryZoom();
 }
+
+window.openExternalGallery = (title, images) => {
+  galleryRows = images.map(externalUrl => ({ externalUrl }));
+  galleryIndex = 0;
+  galleryPartId = 0;
+  document.querySelector('#galleryTitle').textContent = title;
+  document.querySelector('#galleryThumbs').innerHTML = galleryRows.map((item, i) => `<button class="gallery-thumb ${i === 0 ? 'active' : ''}" data-gallery-index="${i}"><img src="${esc(item.externalUrl)}" alt="Görsel ${i + 1}" loading="lazy"></button>`).join('');
+  renderGallery();
+  if (!gallery.open) gallery.showModal();
+};
 
 async function openGallery(row){
   try{
@@ -1341,9 +1492,11 @@ document.addEventListener('keydown',e=>{
 
 // Reset Form Handler
 document.querySelector('#resetButton').onclick=()=>{
-  if(recycleLocalLookupActive)fetch('/api/recycle/cancel',{method:'POST'}).catch(()=>{});
+  if(recycleLocalLookupActive||recycleDirectLookupActive)fetch('/api/recycle/cancel',{method:'POST'}).catch(()=>{});
   recycleLocalLookupToken++;
+  recycleDirectLookupToken++;
   recycleLocalLookupActive=false;
+  recycleDirectLookupActive=false;
   form.reset();
   document.querySelector('#hiddenVehicleInput').value = '';
   count.textContent='—';
@@ -1352,7 +1505,9 @@ document.querySelector('#resetButton').onclick=()=>{
   document.querySelector('.search-layout').classList.remove('has-results');
   resultsCard.classList.add('hidden');
   tableWrap.classList.add('hidden');
+  essInlineResults.hidden=true;
   empty.classList.remove('hidden');
+  empty.classList.remove('compact-no-results');
   syncToggleAllPricesButton();
   setAdvancedOpen(false);
   empty.innerHTML=`<div>⌕</div><h3>${t('ready_to_search')}</h3><p>${t('fill_filters_press_search')}</p>`;

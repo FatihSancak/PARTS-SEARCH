@@ -4,11 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Araç Satış Faturaları · Baytemuer</title>
-  <link rel="stylesheet" href="/sales-report.css?v=3">
+  <link rel="stylesheet" href="/sales-report.css?v=10">
   <link rel="stylesheet" href="/report-logout.css">
+  <link rel="stylesheet" href="/report-auto-lock.css?v=1">
   <link rel="stylesheet" href="/auto-invoice-report.css?v=1">
 </head>
-<body>
+<body data-report-logout="/rapor-cikis">
   <header>
     <img src="/baytemur-logo.svg" alt="Baytemuer">
     <div>
@@ -36,5 +37,6 @@
 
   <footer>© <span id="reportYear"></span> Baytemuer Autorecycling · <b>Baytemuer DevTeam</b></footer>
   <script src="/auto-invoice-report.js?v=1"></script>
+  <script src="/report-auto-lock.js?v=1"></script>
 </body>
 </html>

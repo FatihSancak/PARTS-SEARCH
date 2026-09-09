@@ -14,6 +14,7 @@ let reportData = { rows: [], month: 0 };
 let fullCurrentData = null;
 let previousYearData = null;
 let selectedPerson = '';
+let selectedUnit = '';
 const chartInstances = {};
 
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({
@@ -57,8 +58,8 @@ function activeRows(rows) {
   return (rows || []).filter(row => !row.cancelled);
 }
 
-function filterRows(rows, person = selectedPerson) {
-  return (rows || []).filter(row => !person || row.code === person);
+function filterRows(rows, person = selectedPerson, unit = selectedUnit) {
+  return (rows || []).filter(row => (!person || row.code === person) && (!unit || String(row.unit || '0') === unit));
 }
 
 function totalAmount(rows) {
@@ -165,17 +166,30 @@ function renderComparisonPanel(currentRows, previousRows) {
 function populatePersonFilter(currentRows, previousRows) {
   const select = $('personFilter');
   if (!select) return;
-  const codes = [...new Set([...currentRows, ...previousRows].map(row => row.code).filter(Boolean))].sort();
+  const sourceRows = filterRows([...(currentRows || []), ...(previousRows || [])], '', selectedUnit);
+  const codes = [...new Set(sourceRows.map(row => row.code).filter(Boolean))].sort();
   const oldValue = select.value || selectedPerson;
   const personOptions = codes.map(code => (
     `<option value="${esc(code)}">${esc(staffName(code))} - ${esc(code)}</option>`
   )).join('');
-  select.innerHTML = '<option value="">Tum kullanicilar</option>' + codes.map(code => (
-    `<option value="${esc(code)}">${esc(code)} · ${esc(staffNames[code] || code)}</option>`
-  )).join('');
-  select.innerHTML = '<option value="">Tum kullanicilar</option>' + personOptions;
+  select.innerHTML = '<option value="">Tüm kullanıcılar</option>' + personOptions;
   select.value = codes.includes(oldValue) ? oldValue : '';
   selectedPerson = select.value;
+}
+
+function populateUnitFilter(currentRows, previousRows) {
+  const select = $('unitFilter');
+  if (!select) return;
+  const sourceRows = filterRows([...(currentRows || []), ...(previousRows || [])], selectedPerson, '');
+  const names = Object.assign({}, fullCurrentData?.units || {}, previousYearData?.units || {});
+  for (const row of sourceRows) if (row.unit) names[row.unit] = row.unit_name || names[row.unit] || `Birim ${row.unit}`;
+  const codes = [...new Set(sourceRows.map(row => String(row.unit || '0')).filter(Boolean))].sort((left, right) => Number(left) - Number(right));
+  const oldValue = select.value || selectedUnit;
+  select.innerHTML = '<option value="">Tüm bölümler</option>' + codes.map(code => (
+    `<option value="${esc(code)}">${esc(names[code] || `Birim ${code}`)}</option>`
+  )).join('');
+  select.value = codes.includes(oldValue) ? oldValue : '';
+  selectedUnit = select.value;
 }
 
 function renderStatusBreakdown(data, rows) {
@@ -317,6 +331,12 @@ document.addEventListener('click', event => {
     openPerson(person.dataset.person);
     renderPersonCancellations(person.dataset.person, filterRows(fullCurrentData?.rows || []));
   }
+  const unit = event.target.closest('[data-unit]');
+  if (unit && $('unitFilter')) {
+    selectedUnit = unit.dataset.unit || '';
+    $('unitFilter').value = selectedUnit;
+    applyCurrentFilters();
+  }
   if (event.target.closest('[data-close-person]')) closePerson();
 });
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closePerson(); });
@@ -334,7 +354,7 @@ function render(data) {
     .map(([code, value]) => ({ code, name: staffName(code), ...value }))
     .filter(person => !selectedPerson || person.code === selectedPerson)
     .sort((a, b) => b.total - a.total);
-  $('source').textContent = `Kaynak: ${data.source} · ${data.fields.person}${selectedPerson ? ` · Kullanici: ${selectedPerson}` : ''}`;
+  $('source').textContent = `Kaynak: ${data.source} · ${data.fields.person}${selectedUnit ? ` · Bölüm: ${selectedUnit}` : ''}${selectedPerson ? ` · Kullanıcı: ${selectedPerson}` : ''}`;
   $('total').innerHTML = `${euro.format(total)} ${changeBadge(total, totalAmount(previousRows))}`;
   $('count').innerHTML = `${num.format(rows.length)} ${changeBadge(rows.length, previousRows.length, true)}`;
   $('average').textContent = euro.format(rows.length ? total / rows.length : 0);
@@ -359,6 +379,8 @@ function render(data) {
 
 function applyCurrentFilters() {
   if (!fullCurrentData || !previousYearData) return;
+  populatePersonFilter(fullCurrentData.rows || [], previousYearData.rows || []);
+  populateUnitFilter(fullCurrentData.rows || [], previousYearData.rows || []);
   const currentAllFiltered = filterRows(fullCurrentData.rows || []);
   const previousAllFiltered = filterRows(previousYearData.rows || []);
   const currentActive = activeRows(currentAllFiltered);
@@ -387,6 +409,7 @@ async function load() {
     fullCurrentData = current;
     previousYearData = previous;
     populatePersonFilter(current.rows || [], previous.rows || []);
+    populateUnitFilter(current.rows || [], previous.rows || []);
     applyCurrentFilters();
   } catch (error) {
     $('content').classList.add('hidden');
@@ -400,6 +423,10 @@ async function load() {
 $('load').onclick = load;
 $('personFilter')?.addEventListener('change', event => {
   selectedPerson = event.target.value;
+  applyCurrentFilters();
+});
+$('unitFilter')?.addEventListener('change', event => {
+  selectedUnit = event.target.value;
   applyCurrentFilters();
 });
 load();

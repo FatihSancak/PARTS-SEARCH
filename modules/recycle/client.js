@@ -15,6 +15,18 @@ const normalizePartNumber = (value) => String(value || '')
   .replace(/[\u0300-\u036f]/g, '')
   .replace(/[^A-Z0-9]/g, '');
 
+const normalizeRecyclePartNumber = (value) => String(value || '')
+  .toUpperCase()
+  .replace(/Ä/g, 'A')
+  .replace(/Ö/g, 'O')
+  .replace(/Ü/g, 'U')
+  .replace(/ß/g, 'SS')
+  .replace(/İ/g, 'I')
+  .replace(/İ/g, 'I')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^A-Z0-9*]/g, '');
+
 class RecycleClient {
   constructor() {
     this.browser = null;
@@ -22,6 +34,7 @@ class RecycleClient {
     this.loggedIn = false;
     this.activeSearch = null;
     this.cache = new Map();
+    this.imageCache = new Map();
     this.cancelled = false;
   }
 
@@ -69,7 +82,7 @@ class RecycleClient {
 
   buildSearchUrl(search) {
     const criteria = search && typeof search === 'object' ? search : { OENumber: search };
-    const oeNumber = normalizePartNumber(criteria.OENumber || criteria.partNumber);
+    const oeNumber = normalizeRecyclePartNumber(criteria.OENumber || criteria.partNumber);
     const internalRemarks = String(criteria.internalRemarks || '').trim();
     const url = new URL('/recycle/partsearch.do', 'https://recycle.baytemuer.de');
     const fields = {
@@ -88,7 +101,7 @@ class RecycleClient {
   async performSearch(partNumber) {
     if (!this.loggedIn) await this.login();
     const page = await this.ensurePage();
-    const query = typeof partNumber === 'object' ? partNumber : normalizePartNumber(partNumber);
+    const query = typeof partNumber === 'object' ? partNumber : normalizeRecyclePartNumber(partNumber);
     const searchUrl = this.buildSearchUrl(query);
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
     if (await page.locator('input[name="password"]').count()) {
@@ -122,6 +135,8 @@ class RecycleClient {
         url.searchParams.set('fromSearch', '1');
         output.push({
           url: url.toString(),
+          partPk: match[1],
+          hasImages: Boolean(row.querySelector("img[alt='Foto(s)']")),
           code: cellText(1),
           productName,
           motorCode,
@@ -141,9 +156,50 @@ class RecycleClient {
     return { partNumber: typeof partNumber === 'object' ? JSON.stringify(partNumber) : partNumber, query, status: unique.length ? 'FOUND' : 'NOT_FOUND', count: unique.length, results: unique };
   }
 
+  async getProductImages(partPk) {
+    const id = String(partPk || '').trim();
+    if (!/^[A-Za-z0-9-]{8,80}$/.test(id)) {
+      const error = new Error('Geçerli bir Recycle parça kimliği gereklidir.');
+      error.statusCode = 400;
+      throw error;
+    }
+    const cached = this.imageCache.get(id);
+    if (cached && Date.now() - cached.createdAt < 30 * 60 * 1000) return cached.result;
+    if (!this.loggedIn) await this.login();
+    const page = await this.ensurePage();
+    const detailUrl = new URL('/recycle/spare_part_show.do', 'https://recycle.baytemuer.de');
+    detailUrl.searchParams.set('PartPK', id);
+    detailUrl.searchParams.set('select', '');
+    detailUrl.searchParams.set('searchId', '20');
+    detailUrl.searchParams.set('fromSearch', '1');
+    const response = await page.context().request.get(detailUrl.toString());
+    if (!response.ok()) {
+      const error = new Error('Recycle görselleri alınamadı.');
+      error.statusCode = 502;
+      throw error;
+    }
+    const html = await response.text();
+    const images = [];
+    const seen = new Set();
+    for (const match of html.matchAll(/goImage\(\s*['"]([^'"]+)['"]\s*\)/gi)) {
+      const decoded = match[1].replace(/&amp;/g, '&');
+      let imageUrl;
+      try { imageUrl = new URL(decoded, detailUrl).toString(); } catch { continue; }
+      const parsed = new URL(imageUrl);
+      if (parsed.protocol !== 'https:' || parsed.hostname !== 'recycle.baytemuer.de') continue;
+      if (!parsed.pathname.startsWith('/Baytemuer/artikel/bilder/shop/') || !/\.(?:jpe?g|png|webp)$/i.test(parsed.pathname)) continue;
+      if (!seen.has(imageUrl)) { seen.add(imageUrl); images.push(imageUrl); }
+      if (images.length >= 20) break;
+    }
+    const thumbnail = images[0] ? images[0].replace(/\/([^/]+)$/, '/th$1') : '';
+    const result = { partPk: id, count: images.length, thumbnail, images };
+    this.imageCache.set(id, { createdAt: Date.now(), result });
+    return result;
+  }
+
   search(partNumber) {
     this.cancelled = false;
-    const key = normalizePartNumber(partNumber);
+    const key = normalizeRecyclePartNumber(partNumber);
     const cached = this.cache.get(key);
     if (cached && Date.now() - cached.createdAt < 10 * 60 * 1000) return Promise.resolve(cached.result);
     if (this.activeSearch) {

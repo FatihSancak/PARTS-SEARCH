@@ -1,0 +1,12 @@
+#ebayInlineResults{margin-top:22px;border-top:1px solid #dbe5e8;padding-top:18px;text-align:left}#ebayInlineResults[hidden]{display:none}#ebayInlineResults>header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:0 12px 12px}#ebayInlineResults h3{margin:0;font-size:16px}#ebayInlineQuery{font-size:12px;font-weight:400;color:#637b86;margin-left:10px;overflow-wrap:anywhere}#ebayInlinePage{font-size:12px;color:#146c60}#ebayResultsFrame{display:block;border:0;width:100%;height:280px;background:#fff}#ebayResultsFrame[hidden]{display:none}
+
+/* Same shell as ESS and Recycle; eBay keeps its own blue accent. */
+#ebayInlineResults{margin:14px 10px 18px;padding-top:0;overflow:hidden;border:1px solid color-mix(in srgb,#0064d2 28%,var(--color-border));border-radius:12px;background:var(--color-surface);box-shadow:0 4px 14px rgba(18,35,48,.055)}
+#ebayInlineResults>header{min-height:48px;padding:10px 14px;border-left:4px solid #0064d2;border-bottom:1px solid var(--color-border);background:color-mix(in srgb,#0064d2 7%,var(--color-surface))}
+#ebayInlineResults h3,#ebayInlinePage{color:#0064d2}
+#ebayInlinePage{font-weight:800;text-underline-offset:3px}
+.ebay-inline-actions{display:flex;align-items:center;justify-content:flex-end;gap:14px;flex-wrap:wrap}
+.ebay-exact-filter{display:inline-flex;align-items:center;gap:6px;color:var(--color-text-secondary);font-size:11px;font-weight:700;cursor:pointer}.ebay-exact-filter[hidden]{display:none}.ebay-exact-filter input{accent-color:#0064d2}
+#ebayInlineToggle{border:1px solid color-mix(in srgb,#0064d2 40%,var(--color-border));border-radius:6px;background:var(--color-surface);color:#0064d2;padding:7px 10px;font-size:12px;font-weight:800}
+#ebayInlineToggle:hover{background:color-mix(in srgb,#0064d2 10%,var(--color-surface))}
+@media(max-width:620px){#ebayInlineResults>header{align-items:flex-start}.ebay-inline-actions{gap:8px}#ebayInlineToggle,#ebayInlinePage{font-size:11px}}

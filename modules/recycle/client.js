@@ -197,6 +197,36 @@ class RecycleClient {
     return result;
   }
 
+  async getProductImage(partPk, imageIndex) {
+    const index = Number(imageIndex);
+    if (!Number.isInteger(index) || index < 0 || index >= 20) {
+      const error = new Error('Geçerli bir görsel sırası gereklidir.');
+      error.statusCode = 400;
+      throw error;
+    }
+    const images = await this.getProductImages(partPk);
+    const imageUrl = images.images[index];
+    if (!imageUrl) {
+      const error = new Error('Görsel bulunamadı.');
+      error.statusCode = 404;
+      throw error;
+    }
+    const page = await this.ensurePage();
+    const response = await page.context().request.get(imageUrl);
+    if (!response.ok()) {
+      const error = new Error('Recycle görseli alınamadı.');
+      error.statusCode = 502;
+      throw error;
+    }
+    const contentType = response.headers()['content-type'] || 'image/jpeg';
+    if (!/^image\/(?:jpe?g|png|webp)$/i.test(contentType)) {
+      const error = new Error('Recycle geçerli bir görsel döndürmedi.');
+      error.statusCode = 502;
+      throw error;
+    }
+    return { contentType, body: await response.body() };
+  }
+
   search(partNumber) {
     this.cancelled = false;
     const key = normalizeRecyclePartNumber(partNumber);

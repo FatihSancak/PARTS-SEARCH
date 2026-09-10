@@ -13,6 +13,9 @@ const dictionaries = {
     page_title: 'eBay Parts · Baytemür', home: 'Home', back_to_search: '← Back to parts search', price_summary: 'Competitive price summary', recommended_price: 'Recommended competitive price', quick_sale_price: 'Quick-sale price', market_median: 'Market median', confidence_level: 'Confidence level', shipping_target: 'Target including shipping', shipping_included: 'Including shipping', query_label: 'Part name or OEM number', query_placeholder: 'e.g. Golf 7 headlight or 04L131501', sort_label: 'Sort', sort_best: 'Most relevant listings', sort_price_asc: 'Part + shipping: low to high', sort_price_desc: 'Part + shipping: high to low', sort_new: 'Newly listed', search_parts: 'Search parts', listing_filters: 'Listing filters', business_seller: 'Business seller', used: 'Used', location_germany: 'Item location: Germany', exact_part_number: 'Exact part number match', clear_filters: 'Clear filters', market_label: 'eBay Germany · Car parts & accessories', current_listings: 'Current listings', parts_listings: 'eBay parts listings', result_pages: 'Result pages', previous: '← Previous', next: 'Next →', footer_note: 'Listings are provided by eBay. Check the price, shipping, and availability on eBay before purchasing. The business seller filter is based on the eBay account type and the Germany filter on the item location.', close: 'Close', previous_image: 'Previous image', next_image: 'Next image', listing_image: 'Listing image', start_title: 'Start a parts search', start_description: 'Enter a part name or OEM number and select Search parts.', price_unknown: 'Price not specified', confidence_high: 'High', confidence_medium: 'Medium', confidence_low: 'Low', seller_prices: '{count} independent seller prices', open_images: 'Open listing images', image_error: 'Images could not be loaded', no_image: 'No image available', open_listing: 'Open listing on eBay', seller: 'Seller: ', unspecified: 'Not specified', feedback_score: 'Feedback score: {score}', positive: '{value}% positive', free_shipping: 'Free shipping', shipping: '+ {price} shipping', shipping_unknown: 'Shipping not specified', total: 'Total: {price}', retry: 'Try again', filters_changed: 'Filters changed', filters_changed_description: 'Select Search parts to view results with the chosen filters.', loading: 'Loading eBay listings…', results_count: '· {count} results', last_query: 'Last query {time}', cached: 'Cached', no_results_title: 'No listings found for this search', no_results_description: 'Try a different part name or OEM number. German part names may return more results.', page: 'Page {page}', unavailable_title: 'Listings are currently unavailable', connection_error: 'The server could not be reached. Check your connection and try again.', search_error: 'The eBay search could not be completed.'
   }
 };
+Object.assign(dictionaries.tr, { average_price: 'Ortalama fiyat', price_records: '{count} kayıt · {known} kargolu · {unknown} kargo belirsiz', seller_prices: 'Tüm sayfalardan {count} fiyat' });
+Object.assign(dictionaries.de, { average_price: 'Durchschnittspreis', price_records: '{count} Angebote · {known} mit Versandpreis · {unknown} ohne Versandpreis', seller_prices: '{count} Preise aus allen Seiten' });
+Object.assign(dictionaries.en, { average_price: 'Average price', price_records: '{count} listings · {known} with shipping · {unknown} without shipping', seller_prices: '{count} prices from all pages' });
 const requestedLanguage = new URLSearchParams(location.search).get('lang') || localStorage.getItem('lang') || 'tr';
 const language = ['tr', 'de', 'en'].includes(requestedLanguage) ? requestedLanguage : 'tr';
 const locale = language === 'tr' ? 'tr-TR' : language === 'en' ? 'en-US' : 'de-DE';
@@ -44,15 +47,43 @@ function node(tag, className, text) {
   if (text !== undefined) element.textContent = text;
   return element;
 }
+
+function highlightExactPartNumber(element, value, partNumber) {
+  const normalized = String(partNumber || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!normalized) {
+    element.textContent = value;
+    return;
+  }
+  const flexible = [...normalized].map(character => character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s._/-]*');
+  const matcher = new RegExp(`(^|[^A-Z0-9])(${flexible})(?=$|[^A-Z0-9])`, 'ig');
+  let cursor = 0;
+  for (const match of String(value || '').matchAll(matcher)) {
+    const start = match.index + match[1].length;
+    if (start > cursor) element.append(document.createTextNode(value.slice(cursor, start)));
+    const mark = node('mark', 'exact-part-highlight', value.slice(start, start + match[2].length));
+    element.append(mark);
+    cursor = start + match[2].length;
+  }
+  if (!cursor) element.textContent = value;
+  else if (cursor < value.length) element.append(document.createTextNode(value.slice(cursor)));
+}
+
+function highlightedPartNumberQuery() {
+  const raw = String(state.q || '').trim();
+  const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  // Whatever was supplied as q is the visual target. This also covers
+  // numeric-only OEM numbers such as 2751872 and separator variants.
+  return compact.length >= 2 ? compact : '';
+}
 function money(amount) {
   if (!amount || amount.value == null || String(amount.value).trim() === '' || !Number.isFinite(Number(amount.value))) return translate('price_unknown');
   try { return new Intl.NumberFormat(locale, { style: 'currency', currency: amount.currency }).format(Number(amount.value)); }
   catch { return translate('price_unknown'); }
 }
 function resetStatistics() {
-  for (const id of ['recommendedPrice', 'quickSalePrice', 'medianPrice', 'confidenceLevel']) $(id).textContent = '—';
+  for (const id of ['recommendedPrice', 'quickSalePrice', 'medianPrice', 'averagePrice', 'confidenceLevel']) $(id).textContent = '—';
   $('confidenceLevel').className = '';
-  $('priceCount').textContent = '—';
+  $('priceCount').textContent = '—'; $('averagePriceCount').textContent = '—';
 }
 function percentile(sorted, ratio) {
   if (!sorted.length) return null;
@@ -65,40 +96,27 @@ function competitiveEnding(value) {
   const candidate = Math.floor(value) + .95;
   return candidate <= value ? candidate : Math.max(.95, candidate - 1);
 }
-function marketPriceModel(items) {
-  const bySeller = new Map();
-  items.forEach((item, index) => {
-    const price = item.price?.currency === 'EUR' ? Number(item.price.value) : NaN;
-    const shipping = item.shipping?.currency === 'EUR' ? Number(item.shipping.value) : NaN;
-    if (!Number.isFinite(price) || price < 0 || !Number.isFinite(shipping) || shipping < 0) return;
-    const seller = String(item.seller || `unknown-${index}`).trim().toLowerCase();
-    if (!bySeller.has(seller)) bySeller.set(seller, []);
-    bySeller.get(seller).push(price + shipping);
-  });
-  const sellerPrices = [...bySeller.values()].map(values => {
-    values.sort((a, b) => a - b);
-    return percentile(values, .5);
-  }).sort((a, b) => a - b);
-  if (!sellerPrices.length) return null;
-  const q1 = percentile(sellerPrices, .25), q3 = percentile(sellerPrices, .75);
-  const iqr = q3 - q1;
-  const lower = sellerPrices.length >= 4 ? Math.max(0, q1 - 1.5 * iqr) : 0;
-  const upper = sellerPrices.length >= 4 ? q3 + 1.5 * iqr : Infinity;
-  const prices = sellerPrices.filter(price => price >= lower && price <= upper);
+function marketPriceModel(allPrices) {
+  const sourcePrices = (allPrices || []).map(Number).filter(price => Number.isFinite(price) && price >= 0).sort((a, b) => a - b);
+  if (!sourcePrices.length) return null;
+  const q1 = percentile(sourcePrices, .25), q3 = percentile(sourcePrices, .75);
+  const prices = sourcePrices;
   const median = percentile(prices, .5);
+  const average = prices.reduce((sum, price) => sum + price, 0) / prices.length;
   const spread = median > 0 ? (percentile(prices, .75) - percentile(prices, .25)) / median : Infinity;
   const confidence = prices.length >= 12 && spread <= .45 ? 'high' : prices.length >= 6 && spread <= .75 ? 'medium' : 'low';
   return {
     recommended: competitiveEnding(percentile(prices, .4)),
     quick: competitiveEnding(percentile(prices, .25)),
     median,
+    average,
     confidence,
     used: prices.length,
-    excluded: sellerPrices.length - prices.length,
-    listings: items.length
+    excluded: 0,
+    listings: sourcePrices.length
   };
 }
-function updateStatistics(items) {
+function updateStatistics(items, shippingKnownCount = 0, shippingUnknownCount = 0) {
   const model = marketPriceModel(items);
   if (!model) {
     resetStatistics();
@@ -107,6 +125,12 @@ function updateStatistics(items) {
   $('recommendedPrice').textContent = money({ value: model.recommended, currency: 'EUR' });
   $('quickSalePrice').textContent = money({ value: model.quick, currency: 'EUR' });
   $('medianPrice').textContent = money({ value: model.median, currency: 'EUR' });
+  $('averagePrice').textContent = money({ value: model.average, currency: 'EUR' });
+  $('averagePriceCount').textContent = translate('price_records', {
+    count: new Intl.NumberFormat(locale).format(model.listings),
+    known: new Intl.NumberFormat(locale).format(shippingKnownCount),
+    unknown: new Intl.NumberFormat(locale).format(shippingUnknownCount)
+  });
   $('confidenceLevel').textContent = translate(`confidence_${model.confidence}`);
   $('confidenceLevel').className = `confidence-${model.confidence}`;
   $('priceCount').textContent = translate('seller_prices', { count: new Intl.NumberFormat(locale).format(model.used) });
@@ -137,7 +161,8 @@ function card(item) {
     photo.append(img);
   }
   const title = node('h3');
-  const link = node('a', 'listing', item.title);
+  const link = node('a', 'listing');
+  highlightExactPartNumber(link, item.title, highlightedPartNumberQuery());
   link.href = item.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
   link.title = translate('open_listing');
   title.append(link);
@@ -212,7 +237,7 @@ async function search(updateUrl = false) {
     if (!response.ok) throw new Error(translate('search_error'));
     $('status').replaceChildren();
     $('results').replaceChildren(...data.items.map(card));
-    updateStatistics(data.items);
+    updateStatistics(data.marketPrices || [], data.shippingKnownCount, data.shippingUnknownCount);
     $('count').textContent = translate('results_count', { count: new Intl.NumberFormat(locale).format(data.total) });
     const lastQuery = translate('last_query', { time: new Date(data.fetchedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) });
     $('updated').textContent = lastQuery + (data.cached ? ` · ${translate('cached')}` : '');
@@ -248,7 +273,7 @@ $('next').addEventListener('click', () => { state.page++; search(true); });
 window.addEventListener('popstate', () => { readUrl(); showInitialState(); });
 applyLanguage();
 readUrl();
-if (embedded && state.q) search(); else showInitialState();
+if (state.q) search(); else showInitialState();
 if (embedded) {
   new ResizeObserver(() => window.parent.postMessage({ type: 'ebay-height', height: document.body.scrollHeight }, location.origin)).observe(document.body);
 }

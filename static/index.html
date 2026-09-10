@@ -110,6 +110,7 @@
         <header><h3>eBay <span id="ebayInlineQuery"></span></h3><div class="ebay-inline-actions"><label id="ebayExactFilterWrap" class="ebay-exact-filter" hidden><input id="ebayExactFilter" type="checkbox" checked><span data-i18n="ebay_exact_part">Tam parça numarası eşleşmesi</span></label><button id="ebayInlineToggle" type="button" aria-expanded="false">eBay sonuçlarını göster</button><a id="ebayInlinePage" href="/ebay-parcalar" target="_blank" rel="noopener noreferrer" data-i18n="ebay_open_separate">Ayrı sayfada aç ↗</a></div></header>
         <iframe id="ebayResultsFrame" title="eBay parça ilanları" loading="eager" hidden></iframe>
       </section>
+      <div id="ebayResultLink" class="ebay-result-link" hidden></div>
     </section>
   </main>
 
@@ -265,11 +266,20 @@
         <div id="wmkatStockStage"><i></i><span>WMKAT referansları Recycle içinde aranacak</span></div>
         <div id="wmkatEuStage" class="hidden"><i></i><span>Referanslar EU Teile yerel stokta aranacak</span></div>
       </div>
-      <div class="wmkat-overlay-foot"><span id="wmkatElapsed">00:00</span><button id="wmkatCancelButton" type="button">Aramayı iptal et</button></div>
+      <div class="wmkat-overlay-foot">
+        <span id="wmkatElapsed">00:00</span>
+        <div class="wmkat-overlay-actions">
+          <a id="wmkatEbayButton" class="wmkat-ebay-button" href="/ebay-parcalar" target="_blank" rel="noopener noreferrer">
+            <span class="ebay-logo" aria-hidden="true"><i>e</i><i>b</i><i>a</i><i>y</i></span>
+            <span id="wmkatEbayButtonText">eBay'de ara</span>
+          </a>
+          <button id="wmkatCancelButton" type="button">Aramayı iptal et</button>
+        </div>
+      </div>
     </div>
   </div>
-  <script src="/ebay-integration.js?v=4"></script>
-  <script src="/app.js?v=ebay-exact-part-1"></script>
+  <script src="/ebay-integration.js?v=5"></script>
+  <script src="/app.js?v=wmkat-prompt-i18n-layout-7"></script>
   <script src="/labels.js"></script>
 </body>
 </html>

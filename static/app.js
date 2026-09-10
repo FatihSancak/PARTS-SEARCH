@@ -7,6 +7,7 @@ const essInlineResults = document.querySelector('#essInlineResults');
 const recycleInlineResults = document.querySelector('#recycleInlineResults');
 const essInlineQuery = document.querySelector('#essInlineQuery');
 const recycleInlineQuery = document.querySelector('#recycleInlineQuery');
+const ebayResultLink = document.querySelector('#ebayResultLink');
 const count = document.querySelector('#resultCount');
 const meta = document.querySelector('#resultMeta');
 const toggleAllPricesButton = document.querySelector('#toggleAllPrices');
@@ -45,6 +46,19 @@ const currentResultQuery = () => {
     .filter(Boolean)
     .join(' · ');
 };
+
+function showEbayResultLink(query = currentResultQuery()) {
+  const value = String(query || '').trim();
+  if (!value) return;
+  const params = new URLSearchParams({ q: value, sort: 'price', lang: currentLanguage, exact: String(Boolean(form.elements.part_number?.value?.trim())) });
+  ebayResultLink.innerHTML = `<a href="/ebay-parcalar?${params}">Bu parçayı eBay'de ara ↗</a>`;
+  ebayResultLink.hidden = false;
+}
+
+function clearEbayResultLink() {
+  ebayResultLink.hidden = true;
+  ebayResultLink.innerHTML = '';
+}
 const advancedToggle = document.querySelector('#advancedFiltersToggle');
 const advancedFilters = document.querySelector('#advancedFilters');
 const mobileSearchPanelToggle = document.querySelector('#mobileSearchPanelToggle');
@@ -749,6 +763,7 @@ function render(data, fallbackPartNumber='') {
   renderPagination(data);
   document.querySelectorAll('th.sortable').forEach(th=>{th.classList.toggle('active-sort',th.dataset.sort===data.sort);th.dataset.direction=th.dataset.sort===data.sort?data.dir:''});
   syncToggleAllPricesButton();
+  showEbayResultLink();
 }
 
 function renderPagination(data){
@@ -771,12 +786,14 @@ function renderPagination(data){
 async function runSearch(event, addToHistory = true) {
   const ebayRun = window.EbayResults.clear();
   event?.preventDefault(); 
+  empty.classList.remove('wmkat-prompt-state');
   if(recycleLocalLookupActive||recycleDirectLookupActive)fetch('/api/recycle/cancel',{method:'POST'}).catch(()=>{});
   recycleLocalLookupToken++;
   recycleDirectLookupToken++;
   recycleLocalLookupActive=false;
   recycleDirectLookupActive=false;
   clearRecycleResults();
+  clearEbayResultLink();
   essInlineResults.hidden = true;
   if(event?.type==='submit') {
     resultPage=1;
@@ -848,17 +865,24 @@ function formatWmkatElapsed(){
   return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
 }
 
-function showWmkatOverlay(partNumber){
+function showWmkatOverlay(partNumber,wmkatMode=false){
   const overlay=document.querySelector('#wmkatOverlay');
+  const ebayButton=document.querySelector('#wmkatEbayButton');
+  const ebayButtonText=document.querySelector('#wmkatEbayButtonText');
   wmkatCancelled=false;
   wmkatSearchStartedAt=Date.now();
+  ebayButton.href='/ebay-parcalar?'+new URLSearchParams({q:String(partNumber||''),sort:'price',lang:currentLanguage,exact:'true'});
+  ebayButton.title=currentLanguage==='de'?`${partNumber} bei eBay suchen`:currentLanguage==='en'?`Search ${partNumber} on eBay`:`${partNumber} için eBay'de ara`;
+  ebayButtonText.textContent=currentLanguage==='de'?'Bei eBay suchen':currentLanguage==='en'?'Search on eBay':"eBay'de ara";
   document.querySelector('#wmkatOverlayQuery').textContent=`${currentLanguage==='de'?'Gesuchte Nummer':currentLanguage==='en'?'Searched number':'Aranan numara'}: ${partNumber}`;
-  document.querySelector('#wmkatOverlayTitle').textContent=currentLanguage==='de'?'Alternative Teile werden gesucht':currentLanguage==='en'?'Searching alternative parts':'Alternatif parçalar aranıyor';
+  document.querySelector('#wmkatOverlayTitle').textContent=wmkatMode
+    ?(currentLanguage==='de'?'WMKAT wird durchsucht':currentLanguage==='en'?'Searching WMKAT':'WMKAT üzerinde aranıyor')
+    :(currentLanguage==='de'?'Recycle wird durchsucht':currentLanguage==='en'?'Searching Recycle':'Recycle üzerinde aranıyor');
   document.querySelector('#recycleRemoteStage').className='active';
-  document.querySelector('#wmkatRemoteStage').className='';
-  document.querySelector('#wmkatStockStage').className='';
+  document.querySelector('#wmkatRemoteStage').className=wmkatMode?'':'hidden';
+  document.querySelector('#wmkatStockStage').className=wmkatMode?'':'hidden';
   const euSelected=isEuUnit();
-  document.querySelector('#wmkatEuStage').className=euSelected?'':'hidden';
+  document.querySelector('#wmkatEuStage').className=wmkatMode&&euSelected?'':'hidden';
   document.querySelector('.wmkat-search-stages .done span').textContent=currentLanguage==='de'?'Kein Ergebnis im lokalen System':currentLanguage==='en'?'No result in the local system':'Yerel sistemde sonuç bulunamadı';
   document.querySelector('#recycleRemoteStage span').textContent=currentLanguage==='de'?'Produkt wird in Recycle gesucht':currentLanguage==='en'?'Searching product in Recycle':'Ürün Recycle içinde aranıyor';
   document.querySelector('#wmkatRemoteStage span').textContent=currentLanguage==='de'?'WMKAT-Referenzen werden gesucht':currentLanguage==='en'?'WMKAT references will be searched':'WMKAT referansları aranacak';
@@ -938,7 +962,7 @@ function renderRecycleResults(result,options={}){
     document.querySelector('#pagination').classList.add('hidden');
   }
   container.innerHTML=result.results.map((item,index)=>`<article class="recycle-result-card">
-    ${item.hasImages&&item.partPk?`<button class="recycle-image-button is-loading" type="button" data-recycle-image-part="${esc(item.partPk)}" data-recycle-image-title="${esc(item.productName||item.title)}" aria-label="${t('part_images')}"><img alt="${esc(item.productName||item.title)}" loading="lazy" hidden><span class="recycle-image-placeholder" aria-hidden="true">⌕</span><small>${t('images_count')}</small></button>`:`<div class="recycle-image-button no-recycle-image" title="${t('no_image')}"><img src="/baytemur-placeholder.png" alt="Baytemür"><small>${t('no_image')}</small></div>`}
+    ${item.hasImages&&item.partPk?`<button class="recycle-image-button is-loading" type="button" data-recycle-image-part="${esc(item.partPk)}" data-recycle-image-title="${esc(item.productName||item.title)}" aria-label="${t('part_images')}"><img alt="${esc(item.productName||item.title)}" loading="eager" hidden><span class="recycle-image-placeholder" aria-hidden="true">⌕</span><small>${t('images_count')}</small></button>`:`<div class="recycle-image-button no-recycle-image" title="${t('no_image')}"><img src="/baytemur-placeholder.png" alt="Baytemür"><small>${t('no_image')}</small></div>`}
     <div class="recycle-result-main">
       <div class="recycle-result-top"><span class="recycle-source-badge">Recycle</span><span class="recycle-code">#${esc(item.code||index+1)}</span><span class="recycle-state">${esc(item.status)}</span></div>
       <h3>${esc(item.productName||item.title)}</h3>
@@ -962,6 +986,7 @@ function renderRecycleResults(result,options={}){
   recycleInlineResults.hidden=false;
   hydrateRecycleImages(container);
   syncToggleAllPricesButton();
+  showEbayResultLink();
 }
 
 function hydrateRecycleImages(container){
@@ -976,6 +1001,7 @@ function hydrateRecycleImages(container){
       if(!response.ok)throw new Error(data.error||'Recycle image error');
       if(!data.images?.length)throw new Error('No image');
       const image=button.querySelector('img');
+      image.loading='eager';
       let usedFullImage=false;
       image.onload=()=>{
         image.hidden=false;
@@ -994,9 +1020,10 @@ function hydrateRecycleImages(container){
         button.classList.add('no-recycle-image');
         button.querySelector('small').textContent=t('no_image');
       };
-      image.src=data.thumbnail||data.images[0];
+      const imageUrls=data.images.map((_,index)=>`/api/recycle/parts/${encodeURIComponent(button.dataset.recycleImagePart)}/images/${index}`);
+      image.src=imageUrls[0];
       button.addEventListener('click',()=>{
-        if(button.classList.contains('has-image'))window.openExternalGallery?.(button.dataset.recycleImageTitle,data.images);
+        if(button.classList.contains('has-image'))window.openExternalGallery?.(button.dataset.recycleImageTitle,imageUrls);
       });
     }catch(_){
       button.classList.remove('is-loading');
@@ -1107,33 +1134,74 @@ async function enrichLocalResultsWithRecycle(data){
   }
 }
 
-async function runWmkatAlternatives(partNumber,originalData){
-  setWmkatStatus(currentLanguage==='de'?'Teil nicht gefunden · alternative Quellen werden durchsucht…':currentLanguage==='en'?'Part not found · searching alternative sources…':'Parça bulunamadı · alternatif kaynaklarda aranıyor…');
-  showWmkatOverlay(partNumber);
+function showWmkatSearchPrompt(partNumber,originalData){
+  hideWmkatOverlay();
+  setWmkatStatus(currentLanguage==='de'?'Kein Ergebnis in ESS und Recycle · WMKAT-Suche ist optional':currentLanguage==='en'?'No result in ESS or Recycle · WMKAT search is optional':'ESS ve Recycle sonucu yok · WMKAT araması isteğe bağlı','empty');
+  empty.classList.remove('hidden','compact-no-results');
+  empty.classList.add('wmkat-prompt-state');
+  empty.innerHTML=`<div class="wmkat-search-prompt" data-part-number="${esc(partNumber)}"><div class="wmkat-prompt-logo"><img src="/wmkat-logo.png" alt="WMKAT"></div><div class="wmkat-prompt-copy"><span data-wmkat-prompt="eyebrow"></span><h3 data-wmkat-prompt="title"></h3><p data-wmkat-prompt="query"></p></div><button id="startWmkatSearch" type="button"><span data-wmkat-prompt="button"></span><b aria-hidden="true">→</b></button></div>`;
+  updateWmkatPromptLanguage();
+  document.querySelector('#startWmkatSearch').addEventListener('click',()=>runWmkatAlternatives(partNumber,originalData,true),{once:true});
+}
+
+function updateWmkatPromptLanguage(){
+  const prompt=document.querySelector('.wmkat-search-prompt');
+  if(!prompt)return;
+  const partNumber=prompt.dataset.partNumber||'';
+  const copy=currentLanguage==='de'
+    ?{eyebrow:'ALTERNATIVER TEILEKATALOG',title:'Auch in WMKAT suchen?',query:`Gesuchte Teilenummer: ${partNumber}`,button:'In WMKAT suchen',status:'Kein Ergebnis in ESS und Recycle · WMKAT-Suche ist optional'}
+    :currentLanguage==='en'
+      ?{eyebrow:'ALTERNATIVE PARTS CATALOG',title:'Search WMKAT as well?',query:`Searched part number: ${partNumber}`,button:'Search WMKAT',status:'No result in ESS or Recycle · WMKAT search is optional'}
+      :{eyebrow:'ALTERNATİF PARÇA KATALOĞU',title:'WMKAT üzerinde de aransın mı?',query:`Aranan parça numarası: ${partNumber}`,button:"WMKAT'tan ara",status:'ESS ve Recycle sonucu yok · WMKAT araması isteğe bağlı'};
+  for(const [name,value] of Object.entries(copy)){
+    if(name==='status')continue;
+    const target=prompt.querySelector(`[data-wmkat-prompt="${name}"]`);
+    if(target)target.textContent=value;
+  }
+  setWmkatStatus(copy.status,'empty');
+}
+
+window.addEventListener('app-language-change',updateWmkatPromptLanguage);
+
+async function runWmkatAlternatives(partNumber,originalData,wmkatRequested=false){
+  empty.classList.remove('wmkat-prompt-state');
+  setWmkatStatus(wmkatRequested
+    ?(currentLanguage==='de'?'WMKAT wird durchsucht…':currentLanguage==='en'?'Searching WMKAT…':'WMKAT üzerinde aranıyor…')
+    :(currentLanguage==='de'?'Teil nicht gefunden · Recycle wird durchsucht…':currentLanguage==='en'?'Part not found · searching Recycle…':'Parça bulunamadı · Recycle üzerinde aranıyor…'));
+  showWmkatOverlay(partNumber,wmkatRequested);
+  if(wmkatRequested){
+    const recycleStage=document.querySelector('#recycleRemoteStage');
+    recycleStage.className='done';
+    recycleStage.querySelector('i').textContent='✓';
+    recycleStage.querySelector('span').textContent=currentLanguage==='de'?'Kein Produkt in Recycle gefunden':currentLanguage==='en'?'No product found in Recycle':'Recycle içinde ürün bulunamadı';
+    document.querySelector('#wmkatRemoteStage').className='active';
+  }
   wmkatAbortController=new AbortController();
   try{
     const cacheKey=`${currentUnit()}\u0000${normalizeRecyclePartSearchValue(partNumber)}`;
-    let result=wmkatAlternativesCache.get(cacheKey);
+    let result=wmkatRequested?wmkatAlternativesCache.get(cacheKey):null;
     if(!result){
-      let recycle=null;
-      try{
-        const recycleResponse=await fetch('/api/recycle/search',{
-          method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({partNumber}),signal:wmkatAbortController.signal
-        });
-        recycle=await recycleResponse.json();
-        if(!recycleResponse.ok)throw new Error(recycle.error||'Recycle error');
-      }catch(error){
-        if(error.name==='AbortError')throw error;
-        recycle=null;
-        finishRecycleStage(currentLanguage==='de'?'Recycle nicht verfügbar · WMKAT wird fortgesetzt':currentLanguage==='en'?'Recycle unavailable · continuing with WMKAT':'Recycle kullanılamıyor · WMKAT ile devam ediliyor',true);
-      }
-      if(recycle?.results?.length){
-        renderRecycleResults(recycle);
-        setWmkatStatus(currentLanguage==='de'?`${recycle.count} Produkt(e) in Recycle gefunden`:currentLanguage==='en'?`${recycle.count} product(s) found in Recycle`:`Recycle içinde ${recycle.count} ürün bulundu`,'success');
+      if(!wmkatRequested){
+        let recycle=null;
+        try{
+          const recycleResponse=await fetch('/api/recycle/search',{
+            method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({partNumber}),signal:wmkatAbortController.signal
+          });
+          recycle=await recycleResponse.json();
+          if(!recycleResponse.ok)throw new Error(recycle.error||'Recycle error');
+        }catch(error){
+          if(error.name==='AbortError')throw error;
+          recycle=null;
+          finishRecycleStage(currentLanguage==='de'?'Recycle nicht verfügbar':currentLanguage==='en'?'Recycle unavailable':'Recycle kullanılamıyor',true);
+        }
+        if(recycle?.results?.length){
+          renderRecycleResults(recycle);
+          setWmkatStatus(currentLanguage==='de'?`${recycle.count} Produkt(e) in Recycle gefunden`:currentLanguage==='en'?`${recycle.count} product(s) found in Recycle`:`Recycle içinde ${recycle.count} ürün bulundu`,'success');
+          return;
+        }
+        if(recycle)finishRecycleStage(currentLanguage==='de'?'Kein Produkt in Recycle gefunden':currentLanguage==='en'?'No product found in Recycle':'Recycle içinde ürün bulunamadı');
+        showWmkatSearchPrompt(partNumber,originalData);
         return;
-      }
-      if(recycle){
-        finishRecycleStage(currentLanguage==='de'?'Kein Produkt in Recycle gefunden':currentLanguage==='en'?'No product found in Recycle':'Recycle içinde ürün bulunamadı');
       }
       const response=await fetch('/api/wmkat/search',{
         method:'POST',
@@ -1513,6 +1581,7 @@ document.querySelector('#resetButton').onclick=()=>{
   empty.innerHTML=`<div>⌕</div><h3>${t('ready_to_search')}</h3><p>${t('fill_filters_press_search')}</p>`;
   setWmkatStatus('');
   clearRecycleResults();
+  clearEbayResultLink();
   form.elements.part_number.focus();
   if (!restoringHistory) saveSearchState(true);
 };

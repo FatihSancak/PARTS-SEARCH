@@ -44,7 +44,9 @@ function containsExactPartNumber(item, partNumber) {
   if (!partNumber) return true;
   const flexibleNumber = [...partNumber].map(character => character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s._/-]*');
   const matcher = new RegExp(`(?:^|[^A-Z0-9])${flexibleNumber}(?=$|[^A-Z0-9])`, 'i');
-  return matcher.test([item.title, item.shortDescription, item.subtitle].filter(Boolean).join(' '));
+  // In exact mode the number must be visible in the listing title. This avoids
+  // loosely related results whose number appears only in hidden metadata.
+  return matcher.test(String(item.title || ''));
 }
 
 function safeUrl(value, kind) {
@@ -62,6 +64,7 @@ class EbayClient {
     this.token = null;
     this.tokenPending = null;
     this.cache = new Map();
+    this.statisticsCache = new Map();
     this.pending = new Map();
     this.imageCache = new Map();
   }
@@ -102,6 +105,19 @@ class EbayClient {
     try { return await this.tokenPending; } finally { this.tokenPending = null; }
   }
 
+  async browse(params) {
+    let result;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const token = await this.accessToken();
+      result = await this.request(`https://api.ebay.com/buy/browse/v1/item_summary/search?${params}`, {
+        headers: { Authorization: `Bearer ${token}`, 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_DE', 'Accept-Language': 'de-DE' }
+      });
+      if (result.response.status !== 401) break;
+      this.token = null;
+    }
+    return result;
+  }
+
   async mintToken() {
     const app = this.env.EBAY_PRODUCTION_APP_ID?.trim();
     const secret = this.env.EBAY_PRODUCTION_CERT_ID?.trim();
@@ -138,15 +154,7 @@ class EbayClient {
   }
 
   async searchRemote(query) {
-    let result;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const token = await this.accessToken();
-      result = await this.request(`https://api.ebay.com/buy/browse/v1/item_summary/search?${query.params}`, {
-        headers: { Authorization: `Bearer ${token}`, 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_DE', 'Accept-Language': 'de-DE' }
-      });
-      if (result.response.status !== 401) break;
-      this.token = null;
-    }
+    const result = await this.browse(query.params);
     const { response, body } = result;
     if (!response.ok) {
       if (response.status === 429) throw new EbayError('eBay istek sınırına ulaşıldı. Bir süre sonra tekrar deneyin.', 'EBAY_RATE_LIMIT', 429);
@@ -154,11 +162,11 @@ class EbayClient {
       throw new EbayError('eBay arama isteğini tamamlayamadı. Lütfen tekrar deneyin.', 'EBAY_SEARCH');
     }
     // Seller account type is enforced by the API filter; location and condition are checked again here.
-    const items = (body.itemSummaries || []).filter(item =>
+    const matchesQuery = item =>
       (!query.flags.germany || item.itemLocation?.country === 'DE') &&
       (!query.flags.used || String(item.conditionId) === '3000') &&
-      containsExactPartNumber(item, query.exactPartNumber)
-    ).map(item => ({
+      containsExactPartNumber(item, query.exactPartNumber);
+    const items = (body.itemSummaries || []).filter(matchesQuery).map(item => ({
       id: item.itemId, title: item.title, image: safeUrl(item.image?.imageUrl, 'image'),
       images: [...new Set([item.image, ...(item.additionalImages || [])].map(img => safeUrl(img?.imageUrl, 'image')).filter(Boolean))],
       url: safeUrl(item.itemWebUrl, 'link'), price: item.price || null,
@@ -170,8 +178,58 @@ class EbayClient {
       location: [item.itemLocation?.city, item.itemLocation?.postalCode].filter(Boolean).join(' '),
       condition: item.condition || null
     })).filter(item => item.url);
-    return { items, total: query.exact ? items.length : body.total || 0, page: query.page, pageSize: 24, hasNext: Boolean(body.next) && query.page < 417,
+    const marketParams = new URLSearchParams(query.params);
+    marketParams.set('limit', '200');
+    marketParams.set('offset', '0');
+    // Statistics must not inherit the visible page's price sorting/offset.
+    marketParams.delete('sort');
+    const statisticsKey = `${marketParams}|exact=${query.exactPartNumber}`;
+    let statistics = this.statisticsCache.get(statisticsKey);
+    if (!statistics || statistics.expires <= Date.now()) {
+      const firstMarketResult = await this.browse(marketParams);
+      if (!firstMarketResult.response.ok) throw new EbayError('eBay fiyat istatistikleri alınamadı.', 'EBAY_SEARCH');
+      const firstMarketBody = firstMarketResult.body;
+      const maximumRecords = Math.min(Number(firstMarketBody.total) || 0, 10000);
+      const summaries = [...(firstMarketBody.itemSummaries || [])];
+      const offsets = [];
+      for (let offset = 200; offset < maximumRecords; offset += 200) offsets.push(offset);
+      // Small concurrent batches keep a multi-page search responsive without
+      // flooding the Browse API.
+      for (let start = 0; start < offsets.length; start += 4) {
+        const batch = await Promise.all(offsets.slice(start, start + 4).map(async offset => {
+          const params = new URLSearchParams(marketParams);
+          params.set('offset', String(offset));
+          const pageResult = await this.browse(params);
+          if (!pageResult.response.ok) throw new EbayError('eBay fiyat istatistikleri alınamadı.', 'EBAY_SEARCH');
+          return pageResult.body.itemSummaries || [];
+        }));
+        batch.forEach(pageItems => summaries.push(...pageItems));
+      }
+      const matchingSummaries = summaries.filter(matchesQuery);
+      let shippingKnownCount = 0;
+      let shippingUnknownCount = 0;
+      const marketPrices = matchingSummaries.map(item => {
+        const price = item.price?.currency === 'EUR' ? Number(item.price.value) : NaN;
+        const shippingCost = item.shippingOptions?.[0]?.shippingCost;
+        const shipping = shippingCost?.currency === 'EUR' ? Number(shippingCost.value) : NaN;
+        if (!Number.isFinite(price) || price < 0) return null;
+        // Every listing with a valid EUR item price belongs in the market
+        // calculation. Add shipping when eBay supplies it; an unspecified
+        // shipping price must not discard the whole listing.
+        const shippingKnown = Number.isFinite(shipping) && shipping >= 0;
+        if (shippingKnown) shippingKnownCount += 1;
+        else shippingUnknownCount += 1;
+        return price + (shippingKnown ? shipping : 0);
+      }).filter(value => value !== null);
+      statistics = { marketPrices, shippingKnownCount, shippingUnknownCount, exactTotal: matchingSummaries.length, expires: Date.now() + 60000 };
+      if (this.statisticsCache.size >= 100) this.statisticsCache.delete(this.statisticsCache.keys().next().value);
+      this.statisticsCache.set(statisticsKey, statistics);
+    }
+    const { marketPrices, shippingKnownCount, shippingUnknownCount } = statistics;
+    const resultTotal = query.exact ? statistics.exactTotal : body.total || 0;
+    return { items, total: resultTotal, page: query.page, pageSize: 24, hasNext: Boolean(body.next) && query.page < 417,
       query: query.q, sort: query.sort, fetchedAt: new Date().toISOString(), cached: false,
+      marketPrices, marketRecordCount: marketPrices.length, shippingKnownCount, shippingUnknownCount,
       exactPartNumber: query.exactPartNumber || null,
       marketplace: 'EBAY_DE', filters: { conditionId: query.flags.used ? '3000' : null, sellerAccountType: query.flags.business ? 'BUSINESS' : null, itemLocationCountry: query.flags.germany ? 'DE' : null } };
   }

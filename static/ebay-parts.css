@@ -6,9 +6,11 @@
 .filter-option{display:flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #d7e1e4;border-radius:5px;background:#fff;color:#657985;font-size:12px;cursor:pointer}.filter-option:has(input:checked){background:#e6f0ec;border-color:#b8d3c5;color:#376252}.filter-option input{width:15px;height:15px;margin:0;padding:0;accent-color:#146c60}.filters button{border:1px solid #d7e1e4;border-radius:5px;background:#fff;color:#536e79;padding:7px 10px;font-size:12px}.filters{align-items:center}
 
 /* Competitive price model */
-.price-summary{grid-template-columns:repeat(4,minmax(0,1fr))}
+.price-summary{grid-template-columns:repeat(5,minmax(0,1fr))}
 .stat{gap:7px}.stat strong{font-size:26px}.stat small{min-height:14px;color:#7b8c94;font-size:10px;font-weight:600}
 .stat-recommended{background:#f1f7ff}.stat-recommended strong{color:#0064d2}
 .confidence-high{color:#168052!important}.confidence-medium{color:#b16a00!important}.confidence-low{color:#b13b32!important}
 @media(max-width:1050px){.price-summary{grid-template-columns:1fr 1fr}.stat:nth-child(3){border-left:0;border-top:1px solid #e4ece9}.stat:nth-child(4){border-top:1px solid #e4ece9}}
+@media(max-width:1050px){.stat:nth-child(5){border-left:0;border-top:1px solid #e4ece9}}
 @media(max-width:760px){.stat{padding:14px 11px}.stat strong{font-size:20px}}
+.exact-part-highlight{padding:1px 3px;border-radius:3px;background:#ffe65a;color:#171717;box-shadow:0 0 0 1px #e6c900;font-weight:900}

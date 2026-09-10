@@ -12,6 +12,16 @@ async function recycleModule(fastify) {
       return reply.status(error.statusCode || 502).send({ error: error.message });
     }
   });
+  // Recycle images require its authenticated session. Proxy them through this
+  // server so that result thumbnails and galleries work in the browser.
+  fastify.get('/api/recycle/parts/:partPk/images/:imageIndex', async (request, reply) => {
+    try {
+      const image = await client.getProductImage(request.params?.partPk, request.params?.imageIndex);
+      return reply.type(image.contentType).header('Cache-Control', 'private, max-age=1800').send(image.body);
+    } catch (error) {
+      return reply.status(error.statusCode || 502).send({ error: error.message });
+    }
+  });
   fastify.post('/api/recycle/search', async (request, reply) => {
     const partNumber = String(request.body?.partNumber || '').trim();
     if (!partNumber || partNumber.length > 100) return reply.status(400).send({ error: 'Geçerli bir partNumber gereklidir.' });

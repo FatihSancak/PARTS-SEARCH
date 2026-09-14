@@ -27,6 +27,86 @@ const normalizeRecyclePartNumber = (value) => String(value || '')
   .replace(/[\u0300-\u036f]/g, '')
   .replace(/[^A-Z0-9*]/g, '');
 
+// Order details are legacy HTML tables. Field positions vary by sales channel,
+// so extract label/value pairs instead of relying on a fixed column index.
+const orderDetailFields = (html) => {
+  const decode = (value) => String(value || '')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (_, hex, decimal) => String.fromCodePoint(parseInt(hex || decimal, hex ? 16 : 10)))
+    .replace(/\s+/g, ' ').trim();
+  const result = {};
+  // The part-detail page stores its internal article number in a legacy
+  // JavaScript field instead of a visible "Artikelnummer" table cell.
+  for (const match of String(html || '').matchAll(/FixSet\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]*)['"]/gi)) {
+    const label = match[1].replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
+    if (!result.articleNumber && /^(teilenummer|artikelnummer|artikelnr|artnr)$/.test(label)) result.articleNumber = decode(match[2]);
+  }
+  for (const row of String(html || '').matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const cells = [...row[1].matchAll(/<(?:td|th)\b[^>]*>([\s\S]*?)<\/(?:td|th)>/gi)].map(cell => decode(cell[1]));
+    for (let index = 0; index < cells.length - 1; index += 1) {
+      const label = cells[index].replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
+      const value = cells[index + 1];
+      if (!value) continue;
+      if (!result.articleNumber && /^(artikelnummer|artikelnr|artnr)$/.test(label)) result.articleNumber = value;
+      if (!result.location && /^(lagerort|lagerplatz)$/.test(label)) result.location = value;
+      if (!result.total && /^(gesamt(?:betrag|summe)?|summe|rechnungsbetrag|endbetrag|brutto)$/.test(label) && /(?:€|EUR)/i.test(value)) result.total = value;
+    }
+    const rowText = decode(row[1]);
+    if (!result.articleNumber) {
+      const match = rowText.match(/(?:artikel\s*(?:nummer|nr\.?)|art\.?\s*nr\.?)\s*:?\s*([A-Z0-9][A-Z0-9._/-]{2,})/i);
+      if (match) result.articleNumber = match[1];
+    }
+    if (!result.location) {
+      const match = rowText.match(/(?:lagerort|lagerplatz)\s*:?\s*([A-Z0-9][A-Z0-9._/ -]{0,60}?)(?=\s{2,}|$)/i);
+      if (match) result.location = match[1].trim();
+    }
+    if (!result.total) {
+      const match = rowText.match(/(?:gesamt(?:betrag|summe)?|rechnungsbetrag|endbetrag|summe)\s*:?\s*([\d.,\s]+(?:€|EUR))/i);
+      if (match) result.total = match[1].trim();
+    }
+  }
+  // Some Recycle templates put fields in nested tables or divs, where a
+  // row-based parser cannot see the label/value cells together.
+  const allText = decode(String(html || '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ''));
+  if (!result.articleNumber) {
+    const match = allText.match(/(?:artikel\s*[-.]?\s*(?:nummer|nr\.?)|art\.?\s*nr\.?)\s*:?\s*([A-Z0-9][A-Z0-9._/-]{2,})/i);
+    if (match) result.articleNumber = match[1];
+  }
+  if (!result.oldArticleNumber) {
+    const match = allText.match(/alte\s+teilenummer\s*:\s*([A-Z0-9][A-Z0-9._/-]{2,})/i);
+    if (match) result.oldArticleNumber = match[1];
+  }
+  if (!result.location) {
+    const match = allText.match(/(?:lagerort|lagerplatz)\s*:?\s*([A-Z0-9][A-Z0-9._/ -]{0,60}?)(?=\s{2,}|(?:artikel|verkaufs|einkaufs|preis|menge|status)\b|$)/i);
+    if (match) result.location = match[1].trim();
+  }
+  if (!result.location) {
+    const match = allText.match(/\blager\s*:?\s*(.+?)(?=\s+(?:reserviert|status|qualität|qualit.t|verkaufspreis)\b)/i);
+    if (match && match[1].trim() !== '-' && !/^(?:null|fixset|false|true)/i.test(match[1].trim())) result.location = match[1].trim();
+  }
+  if (!result.brand) {
+    const match = allText.match(/\bhersteller\s*:?\s*(.+?)(?=\s+modell\b)/i);
+    if (match) result.brand = match[1].trim();
+  }
+  if (!result.model) {
+    const match = allText.match(/\bmodell\s*:?\s*(.+?)(?=\s+typ\b)/i);
+    if (match) result.model = match[1].trim();
+  }
+  if (!result.type) {
+    const match = allText.match(/\btyp\s*:?\s*(.+?)(?=\s+(?:leistung|hubraum|bauzeit|weitere\s+verwendungen)\b)/i);
+    if (match) result.type = match[1].trim();
+  }
+  if (!result.total) {
+    const match = allText.match(/(?:gesamt(?:betrag|summe)?|rechnungsbetrag|endbetrag|summe)\s*:?\s*([\d.,\s]+(?:€|EUR))/i);
+    if (match) result.total = match[1].trim();
+  }
+  return result;
+};
+
 class RecycleClient {
   constructor() {
     this.browser = null;
@@ -35,6 +115,7 @@ class RecycleClient {
     this.activeSearch = null;
     this.cache = new Map();
     this.imageCache = new Map();
+    this.orderImageCache = new Map();
     this.cancelled = false;
   }
 
@@ -164,7 +245,7 @@ class RecycleClient {
       throw error;
     }
     const cached = this.imageCache.get(id);
-    if (cached && Date.now() - cached.createdAt < 30 * 60 * 1000) return cached.result;
+    if (cached && cached.result.fields && Date.now() - cached.createdAt < 30 * 60 * 1000) return cached.result;
     if (!this.loggedIn) await this.login();
     const page = await this.ensurePage();
     const detailUrl = new URL('/recycle/spare_part_show.do', 'https://recycle.baytemuer.de');
@@ -192,7 +273,7 @@ class RecycleClient {
       if (images.length >= 20) break;
     }
     const thumbnail = images[0] ? images[0].replace(/\/([^/]+)$/, '/th$1') : '';
-    const result = { partPk: id, count: images.length, thumbnail, images };
+    const result = { partPk: id, count: images.length, thumbnail, images, fields: orderDetailFields(html) };
     this.imageCache.set(id, { createdAt: Date.now(), result });
     return result;
   }
@@ -225,6 +306,112 @@ class RecycleClient {
       throw error;
     }
     return { contentType, body: await response.body() };
+  }
+
+  async getOrders(criteria = {}) {
+    if (!this.loggedIn) await this.login();
+    const number = (value, min, max, fallback) => {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
+    };
+    const from = criteria.from || {};
+    const to = criteria.to || {};
+    const now = new Date();
+    const start = { day: number(from.day, 1, 31, 1), month: number(from.month, 1, 12, now.getMonth() + 1), year: number(from.year, 2020, 2100, now.getFullYear()) };
+    const end = { day: number(to.day, 1, 31, now.getDate()), month: number(to.month, 1, 12, now.getMonth() + 1), year: number(to.year, 2020, 2100, now.getFullYear()) };
+    const url = new URL('/recycle/commissioning.do', 'https://recycle.baytemuer.de');
+    const fields = {
+      orderStatusOption: 'PROCESSING', startOrderDateTag: start.day, startOrderDateMonat: start.month, startOrderDateJahr: start.year,
+      orderCode: '', paymentReceivedOption: 'all', orderTypeOption: 'all', endOrderDateTag: end.day, endOrderDateMonat: end.month,
+      endOrderDateJahr: end.year, partCode: '', freightOrderedOption: 'all', productStatusOption: 'all', commissioningStatusOption: 'all',
+      confirmationOfArrivalReceivedOption: 'all', saleChannelOption: 'all', paymentModeOption: 'all', ebayNumber: '', search: 'Suchen', action: 'show'
+    };
+    Object.entries(fields).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+    const page = await this.ensurePage();
+    await page.goto(url.toString(), { waitUntil: 'domcontentloaded' });
+    if (await page.locator('input[name="password"]').count()) { this.loggedIn = false; await this.login(); await page.goto(url.toString(), { waitUntil: 'domcontentloaded' }); }
+    const content = page.frame({ name: 'CONTENT' }) || page;
+    await content.waitForLoadState('domcontentloaded').catch(() => {});
+    const showOrderFunction = await content.evaluate(() => typeof window.showOrder === 'function' ? String(window.showOrder) : '');
+    const rows = await content.locator('tr').evaluateAll((tableRows) => tableRows.map((row) => {
+      const cells = [...row.querySelectorAll(':scope > td')];
+      // The commissioning page starts with a filter form laid out in table
+      // rows. Those rows contain form controls and must never be displayed as
+      // orders.
+      // Real orders also have a checkbox. Only select controls belong to the
+      // filter form, so a checkbox must not discard an order row.
+      if (cells.length < 3 || row.querySelector('select, textarea, button')) return null;
+      const rowText = cells.map(cell => String(cell.innerText || '').replace(/\s+/g, ' ').trim()).join(' | ');
+      if (/AuftragsNr\.?\s*\|.*(?:Verkaufskanal|Komm\.-Status|Läger)/i.test(rowText)) return null;
+      const text = (i) => String(cells[i]?.innerText || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+      const image = row.querySelector('img[src]');
+      const links = [...row.querySelectorAll('a')].map(link => ({ href: link.getAttribute('href') || '', onclick: link.getAttribute('onclick') || '', label: String(link.innerText || '').replace(/\s+/g, ' ').trim() }));
+      return { cells: cells.map((_, i) => text(i)), imageUrl: image ? new URL(image.getAttribute('src'), location.href).toString() : '', links };
+    }).filter(Boolean));
+    const basicOrders = rows.map((row, index) => {
+      const values = row.cells.filter(Boolean);
+      const imageId = row.imageUrl ? `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 10)}` : '';
+      if (imageId) this.orderImageCache.set(imageId, { url: row.imageUrl, createdAt: Date.now() });
+      const price = values.find(value => /(?:€|EUR)/i.test(value)) || '';
+      // Verkaufskanal is the eighth column on Recycle's commissioning list;
+      // do not mistake the adjacent payment method for the sales channel.
+      const source = values[7] || values.find(value => /\b(eBay|Ovoko|Teilehaber|Autoteilemarkt|PartsBits|Opisto)\b/i.test(value)) || '';
+      const location = values.find(value => /(?:lager(?:ort|platz)?|storage|shelf|regal|fach)\s*[:#-]/i.test(value)) || '';
+      const orderLink = row.links.find(link => /(?:commission|order|auftrag|showOrder)/i.test(`${link.href} ${link.onclick}`));
+      // Some Recycle rows use an inline showOrder(...) handler instead of a
+      // navigable href. Keep that handler so the detail request still works.
+      const orderUrl = orderLink?.href && !/^\s*(?:#|javascript:void\(0\))\s*$/i.test(orderLink.href) ? orderLink.href : (orderLink?.onclick || '');
+      return { id: String(index + 1), orderCode: values[0] || '', date: values.find(value => /\d{1,2}[./-]\d{1,2}[./-]\d{2,4}/.test(value)) || '', name: values.find(value => value.length > 4 && !/(?:€|EUR|\d{1,2}[./-]\d{1,2}[./-]\d{2,4})/i.test(value)) || '', price, source, location, imageId, orderUrl, links: row.links, raw: values };
+    });
+    const orders = await Promise.all(basicOrders.map(async order => {
+      if (!order.orderUrl) return order;
+      try {
+        const action = order.orderUrl.match(/showOrder\(\s*["']([A-Za-z0-9-]+)["'](?:\s*,\s*["']([A-Za-z0-9-]+)["'])?\s*\)/i);
+        const detailUrl = action ? `https://recycle.baytemuer.de/recycle/showorder.do?pk=${encodeURIComponent(action[1])}${action[2] ? `&ipk=${encodeURIComponent(action[2])}` : ''}` : order.orderUrl;
+        const response = await page.context().request.get(detailUrl);
+        if (!response.ok()) return order;
+        const html = await response.text();
+        const fields = orderDetailFields(html);
+        const detailLinks = [...html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)].map(match => ({ href: match[1].replace(/&amp;/g, '&'), label: match[2].replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim() })).filter(link => link.label || /part|article|spare/i.test(link.href));
+        const partMatch = html.match(/(?:PartPK|partPk)=([A-Za-z0-9-]{8,80})/i) || html.match(/ShowPart\(\s*["']([A-Za-z0-9-]{8,80})["']/i);
+        if (!partMatch) return { ...order, ...fields, detailUrl, detailLinks };
+        const partPk = partMatch[1];
+        // In the order detail, the Name column contains the product link.
+        const linkMatch = html.match(new RegExp(`<a[^>]+(?:PartPK|partPk)=${partPk}[^>]*>([\\s\\S]*?)<\\/a>`, 'i'));
+        const productName = linkMatch ? String(linkMatch[1]).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim() : '';
+        const nameLink = detailLinks.find(link => /ShowPart/i.test(link.href) && link.label);
+        const partFields = await this.getProductFields(partPk).catch(() => ({}));
+        return {
+          ...order,
+          ...fields,
+          ...partFields,
+          price: fields.total || order.price,
+          detailUrl,
+          detailLinks,
+          productUrl: `https://recycle.baytemuer.de/recycle/spare_part_show.do?PartPK=${encodeURIComponent(partPk)}&select=&searchId=20&fromSearch=1`,
+          partPk,
+          name: productName || nameLink?.label || order.name
+        };
+      } catch { return order; }
+    }));
+    return { range: { start, end }, count: orders.length, orders, showOrderFunction };
+  }
+
+  async getProductFields(partPk) {
+    const id = String(partPk || '').trim();
+    if (!/^[A-Za-z0-9-]{8,80}$/.test(id)) return {};
+    return (await this.getProductImages(id)).fields || {};
+  }
+
+  async getOrderImage(imageId) {
+    const item = this.orderImageCache.get(String(imageId || ''));
+    if (!item || Date.now() - item.createdAt > 30 * 60 * 1000) { const error = new Error('Sipariş görseli artık geçerli değil.'); error.statusCode = 404; throw error; }
+    const imageUrl = new URL(item.url);
+    if (imageUrl.protocol !== 'https:' || imageUrl.hostname !== 'recycle.baytemuer.de') { const error = new Error('Geçersiz görsel kaynağı.'); error.statusCode = 400; throw error; }
+    const page = await this.ensurePage();
+    const response = await page.context().request.get(imageUrl.toString());
+    if (!response.ok()) { const error = new Error('Sipariş görseli alınamadı.'); error.statusCode = 502; throw error; }
+    return { contentType: response.headers()['content-type'] || 'image/jpeg', body: await response.body() };
   }
 
   search(partNumber) {

@@ -14,3 +14,5 @@
 @media(max-width:1050px){.stat:nth-child(5){border-left:0;border-top:1px solid #e4ece9}}
 @media(max-width:760px){.stat{padding:14px 11px}.stat strong{font-size:20px}}
 .exact-part-highlight{padding:1px 3px;border-radius:3px;background:#ffe65a;color:#171717;box-shadow:0 0 0 1px #e6c900;font-weight:900}
+.card.seller-baytemuer{--result-accent:#e53238;--result-accent-soft:#fff4f4}
+.baytemuer-rankings{margin:10px 0 18px;padding:12px 14px;border:1px solid #f0b5b7;border-left:4px solid #e53238;border-radius:8px;background:#fff7f7;color:#7d2025;font-size:12px;font-weight:700;line-height:1.6}

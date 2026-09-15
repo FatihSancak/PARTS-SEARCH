@@ -2,6 +2,5 @@
 
 /* In the ESS result panel the main form already supplies the query. */
 .embedded .searchbar,.embedded .filters{display:none}
-.embedded .price-summary{display:none}
 .embedded .stat{padding:12px 16px}.embedded .stat strong{font-size:20px}.embedded .price-summary p{padding:7px 16px}
 .embedded .results-head{margin-bottom:7px;padding:0 10px}.embedded .card{padding:9px 12px 9px 9px;gap:14px}

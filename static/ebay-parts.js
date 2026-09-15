@@ -1,5 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
+const isBaytemuerSeller = value => ['baytemuer', 'baytemur'].includes(String(value || '')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''));
 const embedded = window.parent !== window && new URLSearchParams(location.search).get('embed') === '1';
 if (embedded) document.documentElement.classList.add('embedded');
 const dictionaries = {
@@ -13,9 +15,9 @@ const dictionaries = {
     page_title: 'eBay Parts · Baytemür', home: 'Home', back_to_search: '← Back to parts search', price_summary: 'Competitive price summary', recommended_price: 'Recommended competitive price', quick_sale_price: 'Quick-sale price', market_median: 'Market median', confidence_level: 'Confidence level', shipping_target: 'Target including shipping', shipping_included: 'Including shipping', query_label: 'Part name or OEM number', query_placeholder: 'e.g. Golf 7 headlight or 04L131501', sort_label: 'Sort', sort_best: 'Most relevant listings', sort_price_asc: 'Part + shipping: low to high', sort_price_desc: 'Part + shipping: high to low', sort_new: 'Newly listed', search_parts: 'Search parts', listing_filters: 'Listing filters', business_seller: 'Business seller', used: 'Used', location_germany: 'Item location: Germany', exact_part_number: 'Exact part number match', clear_filters: 'Clear filters', market_label: 'eBay Germany · Car parts & accessories', current_listings: 'Current listings', parts_listings: 'eBay parts listings', result_pages: 'Result pages', previous: '← Previous', next: 'Next →', footer_note: 'Listings are provided by eBay. Check the price, shipping, and availability on eBay before purchasing. The business seller filter is based on the eBay account type and the Germany filter on the item location.', close: 'Close', previous_image: 'Previous image', next_image: 'Next image', listing_image: 'Listing image', start_title: 'Start a parts search', start_description: 'Enter a part name or OEM number and select Search parts.', price_unknown: 'Price not specified', confidence_high: 'High', confidence_medium: 'Medium', confidence_low: 'Low', seller_prices: '{count} independent seller prices', open_images: 'Open listing images', image_error: 'Images could not be loaded', no_image: 'No image available', open_listing: 'Open listing on eBay', seller: 'Seller: ', unspecified: 'Not specified', feedback_score: 'Feedback score: {score}', positive: '{value}% positive', free_shipping: 'Free shipping', shipping: '+ {price} shipping', shipping_unknown: 'Shipping not specified', total: 'Total: {price}', retry: 'Try again', filters_changed: 'Filters changed', filters_changed_description: 'Select Search parts to view results with the chosen filters.', loading: 'Loading eBay listings…', results_count: '· {count} results', last_query: 'Last query {time}', cached: 'Cached', no_results_title: 'No listings found for this search', no_results_description: 'Try a different part name or OEM number. German part names may return more results.', page: 'Page {page}', unavailable_title: 'Listings are currently unavailable', connection_error: 'The server could not be reached. Check your connection and try again.', search_error: 'The eBay search could not be completed.'
   }
 };
-Object.assign(dictionaries.tr, { average_price: 'Ortalama fiyat', price_records: '{count} kayıt · {known} kargolu · {unknown} kargo belirsiz', seller_prices: 'Tüm sayfalardan {count} fiyat' });
-Object.assign(dictionaries.de, { average_price: 'Durchschnittspreis', price_records: '{count} Angebote · {known} mit Versandpreis · {unknown} ohne Versandpreis', seller_prices: '{count} Preise aus allen Seiten' });
-Object.assign(dictionaries.en, { average_price: 'Average price', price_records: '{count} listings · {known} with shipping · {unknown} without shipping', seller_prices: '{count} prices from all pages' });
+Object.assign(dictionaries.tr, { average_price: 'Ortalama fiyat', price_records: '{count} kayıt · {known} kargolu · {unknown} kargo belirsiz', seller_prices: 'Tüm sayfalardan {count} fiyat', baytemuer_rankings: 'baytemuer ilanları (kargo dahil): {items}', baytemuer_rank_item: '{rank}. sırada · {price}' });
+Object.assign(dictionaries.de, { average_price: 'Durchschnittspreis', price_records: '{count} Angebote · {known} mit Versandpreis · {unknown} ohne Versandpreis', seller_prices: '{count} Preise aus allen Seiten', baytemuer_rankings: 'baytemuer-Angebote: {items}', baytemuer_rank_item: '{rank}. Platz · {price}' });
+Object.assign(dictionaries.en, { average_price: 'Average price', price_records: '{count} listings · {known} with shipping · {unknown} without shipping', seller_prices: '{count} prices from all pages', baytemuer_rankings: 'baytemuer listings: {items}', baytemuer_rank_item: 'rank {rank} · {price}' });
 const requestedLanguage = new URLSearchParams(location.search).get('lang') || localStorage.getItem('lang') || 'tr';
 const language = ['tr', 'de', 'en'].includes(requestedLanguage) ? requestedLanguage : 'tr';
 const locale = language === 'tr' ? 'tr-TR' : language === 'en' ? 'en-US' : 'de-DE';
@@ -46,6 +48,20 @@ function node(tag, className, text) {
   if (className) element.className = className;
   if (text !== undefined) element.textContent = text;
   return element;
+}
+
+// OEM numbers are commonly copied with visual separators. eBay receives the
+// compact value, just like the main part-number search does.
+function normalizeEbayQuery(value) {
+  return String(value || '').replace(/[\s*-]+/g, '').slice(0, 100);
+}
+
+function updateEbaySearchTitle(items = []) {
+  if (embedded) return;
+  const query = String(state.q || '').trim();
+  const listingName = String(items[0]?.title || '').trim();
+  const resultLabel = [query, listingName].filter(Boolean).join(' · ');
+  document.title = resultLabel ? `${resultLabel} | eBay Parçalar · Baytemür` : 'eBay Parçalar · Baytemür';
 }
 
 function highlightExactPartNumber(element, value, partNumber) {
@@ -84,6 +100,8 @@ function resetStatistics() {
   for (const id of ['recommendedPrice', 'quickSalePrice', 'medianPrice', 'averagePrice', 'confidenceLevel']) $(id).textContent = '—';
   $('confidenceLevel').className = '';
   $('priceCount').textContent = '—'; $('averagePriceCount').textContent = '—';
+  $('baytemuerRankings').hidden = true;
+  $('baytemuerRankings').textContent = '';
 }
 function percentile(sorted, ratio) {
   if (!sorted.length) return null;
@@ -116,7 +134,7 @@ function marketPriceModel(allPrices) {
     listings: sourcePrices.length
   };
 }
-function updateStatistics(items, shippingKnownCount = 0, shippingUnknownCount = 0) {
+function updateStatistics(items, shippingKnownCount = 0, shippingUnknownCount = 0, baytemuerListings = []) {
   const model = marketPriceModel(items);
   if (!model) {
     resetStatistics();
@@ -134,9 +152,19 @@ function updateStatistics(items, shippingKnownCount = 0, shippingUnknownCount = 
   $('confidenceLevel').textContent = translate(`confidence_${model.confidence}`);
   $('confidenceLevel').className = `confidence-${model.confidence}`;
   $('priceCount').textContent = translate('seller_prices', { count: new Intl.NumberFormat(locale).format(model.used) });
+  const rankings = Array.isArray(baytemuerListings) ? baytemuerListings : [];
+  const rankingElement = $('baytemuerRankings');
+  rankingElement.hidden = !rankings.length;
+  rankingElement.textContent = rankings.length ? translate('baytemuer_rankings', {
+    items: rankings.map(listing => translate('baytemuer_rank_item', {
+      rank: new Intl.NumberFormat(locale).format(listing.rank),
+      price: money({ value: listing.price, currency: 'EUR' })
+    })).join('  |  ')
+  }) : '';
 }
 function card(item) {
   const article = node('article', 'card');
+  if (isBaytemuerSeller(item.seller)) article.classList.add('seller-baytemuer');
   const photo = node('button', 'photo');
   photo.type = 'button'; photo.setAttribute('aria-label', translate('open_images'));
   photo.disabled = !item.image;
@@ -211,7 +239,7 @@ function readUrl() {
   const params = new URLSearchParams(location.search);
   const sort = params.get('sort');
   const page = Number(params.get('page') || 1);
-  state = { q: (params.get('q') || '').slice(0, 100), sort: ['best', 'price', '-price', 'newlyListed'].includes(sort) ? sort : 'price', page: Number.isInteger(page) && page > 0 && page <= 417 ? page : 1, exact: params.get('exact') === 'true' };
+  state = { q: normalizeEbayQuery(params.get('q')), sort: ['best', 'price', '-price', 'newlyListed'].includes(sort) ? sort : 'price', page: Number.isInteger(page) && page > 0 && page <= 417 ? page : 1, exact: params.get('exact') === 'true' };
   $('query').value = state.q; $('sort').value = state.sort;
   for (const name of ['business', 'used', 'germany']) {
     state[name] = params.get(name) !== 'false';
@@ -223,6 +251,7 @@ async function search(updateUrl = false) {
   controller?.abort();
   const current = new AbortController(); controller = current;
   const params = new URLSearchParams(state);
+  updateEbaySearchTitle();
   if (embedded) params.set('embed', '1');
   params.set('lang', language);
   if (updateUrl && !embedded) history.pushState(null, '', `${location.pathname}?${params}`);
@@ -235,9 +264,10 @@ async function search(updateUrl = false) {
     const response = await fetch(`/api/ebay/search?${params}`, { signal: current.signal });
     const data = await response.json();
     if (!response.ok) throw new Error(translate('search_error'));
+    updateEbaySearchTitle(data.items);
     $('status').replaceChildren();
     $('results').replaceChildren(...data.items.map(card));
-    updateStatistics(data.marketPrices || [], data.shippingKnownCount, data.shippingUnknownCount);
+    updateStatistics(data.marketPrices || [], data.shippingKnownCount, data.shippingUnknownCount, data.baytemuerListings);
     $('count').textContent = translate('results_count', { count: new Intl.NumberFormat(locale).format(data.total) });
     const lastQuery = translate('last_query', { time: new Date(data.fetchedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) });
     $('updated').textContent = lastQuery + (data.cached ? ` · ${translate('cached')}` : '');
@@ -255,7 +285,9 @@ async function search(updateUrl = false) {
 }
 $('searchForm').addEventListener('submit', event => {
   event.preventDefault();
-  state = { q: $('query').value.trim(), sort: $('sort').value, page: 1, exact: $('exactFilter').checked };
+  const query = normalizeEbayQuery($('query').value);
+  $('query').value = query;
+  state = { q: query, sort: $('sort').value, page: 1, exact: $('exactFilter').checked };
   for (const name of ['business', 'used', 'germany']) state[name] = $(name + 'Filter').checked;
   search(true);
 });

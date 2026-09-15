@@ -1,6 +1,8 @@
 'use strict';
 
 const SORTS = new Set(['best', 'price', '-price', 'newlyListed']);
+const isBaytemuerSeller = value => ['baytemuer', 'baytemur'].includes(String(value || '')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''));
 
 class EbayError extends Error {
   constructor(message, code, statusCode = 502) {
@@ -208,7 +210,7 @@ class EbayClient {
       const matchingSummaries = summaries.filter(matchesQuery);
       let shippingKnownCount = 0;
       let shippingUnknownCount = 0;
-      const marketPrices = matchingSummaries.map(item => {
+      const marketPriceRecords = matchingSummaries.map(item => {
         const price = item.price?.currency === 'EUR' ? Number(item.price.value) : NaN;
         const shippingCost = item.shippingOptions?.[0]?.shippingCost;
         const shipping = shippingCost?.currency === 'EUR' ? Number(shippingCost.value) : NaN;
@@ -219,17 +221,24 @@ class EbayClient {
         const shippingKnown = Number.isFinite(shipping) && shipping >= 0;
         if (shippingKnown) shippingKnownCount += 1;
         else shippingUnknownCount += 1;
-        return price + (shippingKnown ? shipping : 0);
+        return { price: price + (shippingKnown ? shipping : 0), seller: item.seller?.username || '' };
       }).filter(value => value !== null);
-      statistics = { marketPrices, shippingKnownCount, shippingUnknownCount, exactTotal: matchingSummaries.length, expires: Date.now() + 60000 };
+      const marketPrices = marketPriceRecords.map(record => record.price);
+      const baytemuerListings = [...marketPriceRecords]
+        .sort((a, b) => a.price - b.price)
+        .reduce((listings, record, index) => {
+          if (isBaytemuerSeller(record.seller)) listings.push({ rank: index + 1, price: record.price });
+          return listings;
+        }, []);
+      statistics = { marketPrices, baytemuerListings, shippingKnownCount, shippingUnknownCount, exactTotal: matchingSummaries.length, expires: Date.now() + 60000 };
       if (this.statisticsCache.size >= 100) this.statisticsCache.delete(this.statisticsCache.keys().next().value);
       this.statisticsCache.set(statisticsKey, statistics);
     }
-    const { marketPrices, shippingKnownCount, shippingUnknownCount } = statistics;
+    const { marketPrices, baytemuerListings, shippingKnownCount, shippingUnknownCount } = statistics;
     const resultTotal = query.exact ? statistics.exactTotal : body.total || 0;
     return { items, total: resultTotal, page: query.page, pageSize: 24, hasNext: Boolean(body.next) && query.page < 417,
       query: query.q, sort: query.sort, fetchedAt: new Date().toISOString(), cached: false,
-      marketPrices, marketRecordCount: marketPrices.length, shippingKnownCount, shippingUnknownCount,
+      marketPrices, marketRecordCount: marketPrices.length, baytemuerListings, shippingKnownCount, shippingUnknownCount,
       exactPartNumber: query.exactPartNumber || null,
       marketplace: 'EBAY_DE', filters: { conditionId: query.flags.used ? '3000' : null, sellerAccountType: query.flags.business ? 'BUSINESS' : null, itemLocationCountry: query.flags.germany ? 'DE' : null } };
   }

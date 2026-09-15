@@ -4,10 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title data-i18n="page_title">eBay Parçalar · Baytemür</title>
-  <link rel="stylesheet" href="/ebay-parts.css?v=12">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/ebay-parts.css?v=15">
   <link rel="stylesheet" href="/search-results-theme.css?v=4">
-  <link rel="stylesheet" href="/ebay-embed.css?v=3">
-  <script src="/ebay-parts.js?v=17" defer></script>
+  <link rel="stylesheet" href="/ebay-embed.css?v=4">
+  <script src="/ebay-parts.js?v=23" defer></script><script src="/order-alert.js" defer></script><script src="/site-nav.js" defer></script>
 </head>
 <body>
   <header class="topbar"><a href="/" data-i18n-aria-label="home"><img src="/baytemur-logo.svg" alt="Baytemür Autorecycling" width="180"></a><a class="back" href="/" data-i18n="back_to_search">← Parça aramaya dön</a></header>
@@ -25,6 +26,7 @@
       <div class="stat"><span data-i18n="average_price">Ortalama fiyat</span><strong id="averagePrice">—</strong><small id="averagePriceCount">—</small></div>
       <div class="stat"><span data-i18n="confidence_level">Güven seviyesi</span><strong id="confidenceLevel">—</strong><small id="priceCount">—</small></div>
     </section>
+    <p id="baytemuerRankings" class="baytemuer-rankings" hidden></p>
     <form id="searchForm" class="searchbar" role="search">
       <label class="query"><span data-i18n="query_label">Parça adı veya OEM numarası</span><input id="query" name="q" maxlength="100" data-i18n-placeholder="query_placeholder" placeholder="Örn. Golf 7 Scheinwerfer veya 04L131501" autocomplete="off"></label>
       <label><span data-i18n="sort_label">Sıralama</span><select id="sort" name="sort"><option value="best" data-i18n="sort_best">En ilgili ilanlar</option><option value="price" data-i18n="sort_price_asc">Parça + kargo: artan</option><option value="-price" data-i18n="sort_price_desc">Parça + kargo: azalan</option><option value="newlyListed" data-i18n="sort_new">Yeni eklenenler</option></select></label>

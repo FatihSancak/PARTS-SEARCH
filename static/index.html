@@ -4,13 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Baytemuer Parça Arama</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css?v=9">
-  <link rel="stylesheet" href="/gallery.css?v=8">
+  <link rel="stylesheet" href="/gallery.css?v=12">
   <link rel="stylesheet" href="/ebay-integration.css?v=4">
-  <link rel="stylesheet" href="/search-results-theme.css?v=6">
+  <link rel="stylesheet" href="/search-results-theme.css?v=6"><script src="/site-nav.js" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -200,7 +201,7 @@
     </div>
     <div class="gallery-stage">
       <button id="galleryPrev" class="gallery-nav prev" aria-label="Önceki">‹</button>
-      <div id="galleryViewport" class="gallery-viewport" title="Yakınlaştırmak için tıklayın; uzaklaştırmak için Shift + tıklayın"><img id="galleryImage" alt="Parça görseli" draggable="false"></div>
+      <div id="galleryViewport" class="gallery-viewport" title="Yakınlaştırmak için sol tıklayın; uzaklaştırmak için sağ tıklayın"><img id="galleryImage" alt="Parça görseli" draggable="false"></div>
       <button id="galleryNext" class="gallery-nav next" aria-label="Sonraki">›</button>
       <div class="gallery-zoom-controls" aria-label="Görsel yakınlaştırma"><button id="galleryZoomOut" type="button" title="Uzaklaştır">−</button><button id="galleryZoomReset" type="button" title="Yakınlaştırmayı sıfırla">100%</button><button id="galleryZoomIn" type="button" title="Yakınlaştır">+</button></div>
     </div>
@@ -279,7 +280,7 @@
     </div>
   </div>
   <script src="/ebay-integration.js?v=5"></script>
-  <script src="/app.js?v=wmkat-prompt-i18n-layout-7"></script>
+  <script src="/app.js?v=wmkat-prompt-i18n-layout-10"></script><script src="/order-alert.js" defer></script>
   <script src="/labels.js"></script>
 </body>
 </html>

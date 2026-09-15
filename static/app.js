@@ -717,8 +717,17 @@ async function health() {
   }
 }
 
+function updateSearchResultTitle(rows, fallbackPartNumber = '') {
+  const firstResult = rows?.[0];
+  const partNumber = String(firstResult?.Artikelnummer || firstResult?.ArtikelNr || fallbackPartNumber || '').trim();
+  const partName = String(firstResult?.Bezeichnung || '').trim();
+  const resultLabel = [partNumber, partName].filter(Boolean).join(' · ');
+  document.title = resultLabel ? `${resultLabel} | Baytemür Parça Arama` : 'Baytemür Parça Arama';
+}
+
 function render(data, fallbackPartNumber='') {
   currentRows = data.rows;
+  updateSearchResultTitle(data.rows, fallbackPartNumber);
   empty.classList.remove('compact-no-results');
   count.textContent = new Intl.NumberFormat(currentLanguage === 'en' ? 'en-US' : 'tr-TR').format(data.count);
   meta.textContent = `${data.page} / ${data.pages} · ${data.shown} / ${data.count}`;
@@ -1512,13 +1521,17 @@ document.querySelector('#galleryZoomOut').onclick=()=>setGalleryZoom(galleryZoom
 document.querySelector('#galleryZoomReset').onclick=resetGalleryZoom;
 const galleryViewport=document.querySelector('#galleryViewport');
 galleryViewport.addEventListener('wheel',event=>{event.preventDefault();setGalleryZoom(galleryZoom+(event.deltaY<0?.25:-.25));},{passive:false});
-galleryViewport.addEventListener('pointerdown',event=>{galleryPointerMoved=false;if(galleryZoom<=1)return;event.preventDefault();galleryPanStart={x:event.clientX,y:event.clientY,panX:galleryPanX,panY:galleryPanY,id:event.pointerId};galleryViewport.setPointerCapture?.(event.pointerId)});
+galleryViewport.addEventListener('pointerdown',event=>{galleryPointerMoved=false;if(event.button!==0||galleryZoom<=1)return;event.preventDefault();galleryPanStart={x:event.clientX,y:event.clientY,panX:galleryPanX,panY:galleryPanY,id:event.pointerId};galleryViewport.setPointerCapture?.(event.pointerId)});
 galleryViewport.addEventListener('pointermove',event=>{if(!galleryPanStart||galleryPanStart.id!==event.pointerId)return;const dx=event.clientX-galleryPanStart.x,dy=event.clientY-galleryPanStart.y;if(Math.abs(dx)>3||Math.abs(dy)>3)galleryPointerMoved=true;galleryPanX=galleryPanStart.panX+dx;galleryPanY=galleryPanStart.panY+dy;applyGalleryZoom()});
 galleryViewport.addEventListener('pointerup',()=>{galleryPanStart=null});
 galleryViewport.addEventListener('pointercancel',()=>{galleryPanStart=null});
 galleryViewport.addEventListener('click',event=>{
   if(galleryPointerMoved){galleryPointerMoved=false;return;}
-  setGalleryZoomAt(galleryZoom+(event.shiftKey?-.5:.5),event.clientX,event.clientY);
+  setGalleryZoomAt(galleryZoom+.5,event.clientX,event.clientY);
+});
+galleryViewport.addEventListener('contextmenu',event=>{
+  event.preventDefault();
+  setGalleryZoomAt(galleryZoom-.5,event.clientX,event.clientY);
 });
 gallery.addEventListener('click',e=>{
   if(e.target===gallery) gallery.close();
@@ -1913,14 +1926,25 @@ function copyableVehicleValue(value, displayValue = value) {
 }
 
 async function copyVehicleText(value) {
+  const textToCopy = String(value ?? '');
+  if (!textToCopy) return false;
   try {
-    if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(value);
-    else {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(textToCopy);
+    } else {
       const textarea = document.createElement('textarea');
-      textarea.value = value;
-      textarea.style.position = 'fixed'; textarea.style.opacity = '0';
-      document.body.appendChild(textarea); textarea.select();
-      document.execCommand('copy'); textarea.remove();
+      textarea.value = textToCopy;
+      textarea.setAttribute('readonly', '');
+      textarea.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none;';
+      // A modal dialog makes elements outside it inert. Keep the temporary
+      // selection inside the active vehicle dialog so the browser can focus it.
+      (vehicleDialog.open ? vehicleDialog : document.body).appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      const copied = document.execCommand('copy');
+      textarea.remove();
+      if (!copied) throw new Error('Clipboard copy was rejected');
     }
     showToast(t('copied'));
     return true;
@@ -2030,6 +2054,17 @@ document.querySelector('#vehiclePagination').addEventListener('click', event => 
 document.querySelector('#closeVehicleDetail').addEventListener('click', () => vehicleDialog.close());
 vehicleDialog.addEventListener('click', event => {
   if (event.target === vehicleDialog) vehicleDialog.close();
+  const copyButton = event.target.closest('.copy-button');
+  if (copyButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    copyVehicleText(copyButton.dataset.copy || '').then(copied => {
+      if (!copied) return;
+      copyButton.classList.add('copied');
+      setTimeout(() => copyButton.classList.remove('copied'), 1200);
+    });
+    return;
+  }
   const moreToggle = event.target.closest('.vehicle-more-toggle');
   if (moreToggle) {
     const extraData = vehicleDialog.querySelector('.vehicle-extra-data');

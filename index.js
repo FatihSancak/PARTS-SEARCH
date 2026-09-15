@@ -297,6 +297,11 @@ th{background:#d9e8fb;font-weight:700}
 </html>`;
 }
 
+fastify.get('/app.ico', async (request, reply) => {
+    reply.type('image/x-icon');
+    return reply.send(fsSync.createReadStream(path.join(__dirname, 'app.ico')));
+});
+
 // Register Static files directory
 fastify.register(require('@fastify/static'), {
     root: path.join(__dirname, 'static'),
@@ -311,6 +316,7 @@ fastify.register(require('./modules/wmkat'), {
 });
 fastify.register(require('./modules/recycle'));
 fastify.register(require('./modules/ebay'));
+fastify.register(require('./modules/ovoko'));
 
 // API Routes
 
@@ -426,6 +432,7 @@ fastify.get('/rapor-cikis', async (request, reply) => {
 fastify.get('/rapor', { preHandler: requireReportSession }, async (request, reply) => reply.sendFile('sales-report.html'));
 fastify.get('/rapor/auto', { preHandler: requireReportSession }, async (request, reply) => reply.sendFile('auto-invoice-report.html'));
 fastify.get('/kba', async (request, reply) => reply.sendFile('kba.html'));
+fastify.get('/siparisler', async (request, reply) => reply.sendFile('orders.html'));
 fastify.get('/c_o_giris', async (request, reply) => {
     if (hasSession(request, C_O_REPORT_SESSION_COOKIE, cOReportSessions)) return reply.redirect('/c_o_report');
     return reply.type('text/html; charset=utf-8').send(reportLoginPage('/c_o_giris', request.query.hata === '1'));

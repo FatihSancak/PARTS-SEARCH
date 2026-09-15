@@ -59,6 +59,8 @@
   height: min(850px, calc(100vh - 24px));
   max-width: none;
   max-height: none;
+  display: grid;
+  grid-template-rows: 66px minmax(0, 1fr) 98px;
   background: var(--color-bg);
   color: var(--color-text-primary);
   border: 1px solid var(--color-border);
@@ -82,6 +84,7 @@
 }
 
 .gallery-bar {
+  grid-row: 1;
   height: 66px;
   padding: 0 24px;
   display: flex;
@@ -125,8 +128,8 @@
 
 /* Gallery Stage */
 .gallery-stage {
-  height: calc(100% - 164px);
-  min-height: 300px;
+  grid-row: 2;
+  min-height: 0;
   position: relative;
   display: flex;
   align-items: center;
@@ -192,6 +195,7 @@ button.gallery-nav:focus-visible:not(:disabled) {
 
 /* Gallery Thumbnails list */
 .gallery-thumbs {
+  grid-row: 3;
   height: 98px;
   display: flex;
   gap: 10px;
@@ -623,9 +627,9 @@ body.light-theme .brand-logo {
 .pagination span {
   color: var(--color-text-secondary);
 }
-.gallery-viewport{width:min(78vw,1100px);height:min(68vh,760px);display:grid;place-items:center;overflow:hidden;touch-action:none;cursor:zoom-in}
+.gallery-viewport{width:min(78vw,1100px);height:100%;max-height:100%;min-width:0;align-self:stretch;justify-self:center;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;cursor:zoom-in}
 .gallery-viewport.zoomed{cursor:grab}.gallery-viewport.zoomed:active{cursor:grabbing}
-.gallery-viewport #galleryImage{display:block;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;object-position:center;transform-origin:center;will-change:transform;transition:transform .12s ease-out}
+.gallery-viewport #galleryImage{display:block;width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;object-position:center;transform-origin:center;will-change:transform;transition:transform .12s ease-out}
 .gallery-viewport.zoomed #galleryImage{transition:none}
 .gallery-zoom-controls{position:absolute;right:18px;bottom:18px;z-index:5;display:flex;align-items:center;gap:5px;padding:5px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(10,14,22,.78);backdrop-filter:blur(12px)}
 .gallery-zoom-controls button{min-width:34px;height:32px;padding:0 9px;border:0;border-radius:999px;background:rgba(255,255,255,.1);color:#fff;font-weight:800;cursor:pointer}.gallery-zoom-controls button:hover{background:var(--color-primary)}

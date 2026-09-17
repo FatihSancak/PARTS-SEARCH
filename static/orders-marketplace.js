@@ -9,3 +9,5 @@
   const load=async()=>{const from=document.querySelector('#from'),to=document.querySelector('#to');if(!from?.value||!to?.value)return;const parse=value=>{const [year,month,day]=value.split('-').map(Number);return{year,month,day}};try{const response=await fetch('/api/recycle/orders',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({from:parse(from.value),to:parse(to.value)})});const data=await response.json();if(!response.ok)return;const observer=new MutationObserver(()=>decorate(data.orders||[]));observer.observe(document.querySelector('#orders'),{childList:true,subtree:true});decorate(data.orders||[])}catch{}};
   if(document.readyState==='complete')setTimeout(load,250);else window.addEventListener('load',()=>setTimeout(load,250));
 })();
+  const moveMarketplaceFirst=()=>document.querySelectorAll('.meta .marketplace-badge').forEach(badge=>{if(badge.parentElement?.firstElementChild!==badge)badge.parentElement.prepend(badge)});
+  new MutationObserver(moveMarketplaceFirst).observe(document.querySelector('#orders'),{childList:true,subtree:true});

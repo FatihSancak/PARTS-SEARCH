@@ -12,10 +12,11 @@ test('always restricts to German used business car parts and validates input bef
   assert.equal(p.params.get('category_ids'), '6030');
   assert.equal(p.params.get('filter'), 'conditionIds:{3000},sellerAccountTypes:{BUSINESS},itemLocationCountry:DE');
   assert.equal(p.params.get('q'), '04L & Motor');
-  assert.equal(p.params.get('offset'), '24');
+  assert.equal(p.params.get('limit'), '100');
+  assert.equal(p.params.get('offset'), '100');
   assert.equal(p.params.get('sort'), 'price');
   assert.equal(parameters({ sort: '-price', page: 2 }).params.get('sort'), '-price');
-  for (const input of [{ page: -1 }, { page: 1.5 }, { page: 418 }, { q: 'a'.repeat(101) }, { sort: 'malicious' }]) assert.throws(() => parameters(input), { code: 'INVALID_QUERY' });
+  for (const input of [{ page: -1 }, { page: 1.5 }, { page: 101 }, { q: 'a'.repeat(101) }, { sort: 'malicious' }]) assert.throws(() => parameters(input), { code: 'INVALID_QUERY' });
 });
 
 test('exact part-number matching rejects attached prefixes and suffixes', async () => {

@@ -4,6 +4,20 @@ const isBaytemuerSeller = value => ['baytemuer', 'baytemur'].includes(String(val
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''));
 const embedded = window.parent !== window && new URLSearchParams(location.search).get('embed') === '1';
 if (embedded) document.documentElement.classList.add('embedded');
+const partsSearchWindowName = 'baytemur-part-search';
+
+function returnToPartsSearch(event) {
+  if (embedded) return;
+  event.preventDefault();
+  // Prefer the caller so its existing search state is preserved. Otherwise,
+  // reuse or create one named parts-search tab.
+  const searchTab = window.opener && !window.opener.closed
+    ? window.opener
+    : window.open('/', partsSearchWindowName);
+  try { searchTab.focus(); } catch { /* Focus may be blocked by the browser. */ }
+  window.close();
+}
+document.querySelector('.back')?.addEventListener('click', returnToPartsSearch);
 const dictionaries = {
   tr: {
     page_title: 'eBay Parçalar · Baytemür', home: 'Ana sayfa', back_to_search: '← Parça aramaya dön', price_summary: 'Rekabetçi fiyat özeti', recommended_price: 'Önerilen rekabetçi fiyat', quick_sale_price: 'Hızlı satış fiyatı', market_median: 'Piyasa medyanı', confidence_level: 'Güven seviyesi', shipping_target: 'Kargo dâhil hedef', shipping_included: 'Kargo dâhil', query_label: 'Parça adı veya OEM numarası', query_placeholder: 'Örn. Golf 7 Scheinwerfer veya 04L131501', sort_label: 'Sıralama', sort_best: 'En ilgili ilanlar', sort_price_asc: 'Parça + kargo: artan', sort_price_desc: 'Parça + kargo: azalan', sort_new: 'Yeni eklenenler', search_parts: 'Parça ara', listing_filters: 'İlan filtreleri', business_seller: 'Kurumsal satıcı', used: 'Kullanılmış', location_germany: 'Ürün konumu: Almanya', exact_part_number: 'Tam parça numarası eşleşmesi', clear_filters: 'Filtreleri kaldır', market_label: 'eBay Almanya · Otomobil parçaları ve aksesuarları', current_listings: 'Güncel ilanlar', parts_listings: 'eBay parça ilanları', result_pages: 'Sonuç sayfaları', previous: '← Önceki', next: 'Sonraki →', footer_note: 'İlanlar eBay’den alınır. Fiyat, kargo ve stok durumunu satın almadan önce eBay’de kontrol edin. Kurumsal satıcı filtresi eBay hesap türüne, Almanya filtresi ürünün bulunduğu ülkeye dayanır.', close: 'Kapat', previous_image: 'Önceki görsel', next_image: 'Sonraki görsel', listing_image: 'İlan görseli', start_title: 'Parça aramaya başlayın', start_description: 'Parça adı veya OEM numarasını yazıp Parça ara düğmesine basın.', price_unknown: 'Fiyat belirtilmemiş', confidence_high: 'Yüksek', confidence_medium: 'Orta', confidence_low: 'Düşük', seller_prices: '{count} bağımsız satıcı fiyatı', open_images: 'İlan görsellerini aç', image_error: 'Görseller alınamadı', no_image: 'Görsel bulunamadı', open_listing: 'eBay’de ilanı aç', seller: 'Satıcı: ', unspecified: 'Belirtilmemiş', feedback_score: 'Geri bildirim puanı: {score}', positive: '%{value} olumlu', free_shipping: 'Ücretsiz kargo', shipping: '+ {price} kargo', shipping_unknown: 'Kargo belirtilmemiş', total: 'Toplam: {price}', retry: 'Tekrar dene', filters_changed: 'Filtreler değiştirildi', filters_changed_description: 'Seçtiğiniz filtrelerle sonuçları görmek için Parça ara düğmesine basın.', loading: 'eBay ilanları yükleniyor…', results_count: '· {count} sonuç', last_query: 'Son sorgu {time}', cached: 'Önbellekten', no_results_title: 'Bu aramada ilan bulunamadı', no_results_description: 'Farklı bir parça adı veya OEM numarası deneyin. Almanca parça adlarıyla daha fazla sonuç bulabilirsiniz.', page: 'Sayfa {page}', unavailable_title: 'İlanlar şu anda alınamıyor', connection_error: 'Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.', search_error: 'eBay araması tamamlanamadı.'
@@ -239,7 +253,7 @@ function readUrl() {
   const params = new URLSearchParams(location.search);
   const sort = params.get('sort');
   const page = Number(params.get('page') || 1);
-  state = { q: normalizeEbayQuery(params.get('q')), sort: ['best', 'price', '-price', 'newlyListed'].includes(sort) ? sort : 'price', page: Number.isInteger(page) && page > 0 && page <= 417 ? page : 1, exact: params.get('exact') === 'true' };
+  state = { q: normalizeEbayQuery(params.get('q')), sort: ['best', 'price', '-price', 'newlyListed'].includes(sort) ? sort : 'price', page: Number.isInteger(page) && page > 0 && page <= 100 ? page : 1, exact: params.get('exact') === 'true' };
   $('query').value = state.q; $('sort').value = state.sort;
   for (const name of ['business', 'used', 'germany']) {
     state[name] = params.get(name) !== 'false';

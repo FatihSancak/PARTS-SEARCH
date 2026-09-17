@@ -1,6 +1,8 @@
 'use strict';
 
 const SORTS = new Set(['best', 'price', '-price', 'newlyListed']);
+const RESULTS_PER_PAGE = 100;
+const MAX_RESULT_PAGES = 100; // eBay Browse API exposes at most 10,000 results.
 const isBaytemuerSeller = value => ['baytemuer', 'baytemur'].includes(String(value || '')
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''));
 
@@ -25,14 +27,14 @@ function parameters(input = {}) {
   const exact = exactValue === true || exactValue === 'true';
   const sort = String(input.sort || 'best');
   const page = Number(input.page ?? 1);
-  if (q.length > 100 || !SORTS.has(sort) || !Number.isInteger(page) || page < 1 || page > 417) {
+  if (q.length > 100 || !SORTS.has(sort) || !Number.isInteger(page) || page < 1 || page > MAX_RESULT_PAGES) {
     throw new EbayError('Arama en fazla 100 karakter olmalı; sayfa ve sıralama geçerli olmalıdır.', 'INVALID_QUERY', 400);
   }
   const filters = [];
   if (flags.used) filters.push('conditionIds:{3000}');
   if (flags.business) filters.push('sellerAccountTypes:{BUSINESS}');
   if (flags.germany) filters.push('itemLocationCountry:DE');
-  const params = new URLSearchParams({ category_ids: '6030', limit: '24', offset: String((page - 1) * 24) });
+  const params = new URLSearchParams({ category_ids: '6030', limit: String(RESULTS_PER_PAGE), offset: String((page - 1) * RESULTS_PER_PAGE) });
   if (filters.length) params.set('filter', filters.join(','));
   if (q) params.set('q', q);
   // Browse API price/-price sorts the full result set by item price + shipping cost.
@@ -236,7 +238,7 @@ class EbayClient {
     }
     const { marketPrices, baytemuerListings, shippingKnownCount, shippingUnknownCount } = statistics;
     const resultTotal = query.exact ? statistics.exactTotal : body.total || 0;
-    return { items, total: resultTotal, page: query.page, pageSize: 24, hasNext: Boolean(body.next) && query.page < 417,
+    return { items, total: resultTotal, page: query.page, pageSize: RESULTS_PER_PAGE, hasNext: Boolean(body.next) && query.page < MAX_RESULT_PAGES,
       query: query.q, sort: query.sort, fetchedAt: new Date().toISOString(), cached: false,
       marketPrices, marketRecordCount: marketPrices.length, baytemuerListings, shippingKnownCount, shippingUnknownCount,
       exactPartNumber: query.exactPartNumber || null,

@@ -5,6 +5,10 @@ window.EbayResults = (() => {
   const frame = document.querySelector('#ebayResultsFrame');
   const toggle = document.querySelector('#ebayInlineToggle');
   const pageLink = document.querySelector('#ebayInlinePage');
+  // "Open on a separate page" must update the one eBay tab, not create a
+  // fresh tab for every result search. Keeping an opener enables its return.
+  pageLink.target = 'baytemur-ebay-parts';
+  pageLink.rel = '';
   const exactFilterWrap = document.querySelector('#ebayExactFilterWrap');
   const exactFilter = document.querySelector('#ebayExactFilter');
   let language = localStorage.getItem('lang') || 'tr';

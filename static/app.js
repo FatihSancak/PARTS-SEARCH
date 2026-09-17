@@ -47,12 +47,17 @@ const currentResultQuery = () => {
     .join(' · ');
 };
 
+// The named targets let all eBay searches share one browser tab.
+if (window.name !== 'baytemur-ebay-parts') window.name = 'baytemur-part-search';
+const ebayWindowName = 'baytemur-ebay-parts';
+
 function showEbayResultLink(query = currentResultQuery()) {
   const value = String(query || '').trim();
   if (!value) return;
   const params = new URLSearchParams({ q: value, sort: 'price', lang: currentLanguage, exact: String(Boolean(form.elements.part_number?.value?.trim())) });
   ebayResultLink.innerHTML = `<a href="/ebay-parcalar?${params}">Bu parçayı eBay'de ara ↗</a>`;
   ebayResultLink.hidden = false;
+  ebayResultLink.querySelector('a').target = ebayWindowName;
 }
 
 function clearEbayResultLink() {
@@ -881,6 +886,8 @@ function showWmkatOverlay(partNumber,wmkatMode=false){
   wmkatCancelled=false;
   wmkatSearchStartedAt=Date.now();
   ebayButton.href='/ebay-parcalar?'+new URLSearchParams({q:String(partNumber||''),sort:'price',lang:currentLanguage,exact:'true'});
+  ebayButton.target=ebayWindowName;
+  ebayButton.rel='';
   ebayButton.title=currentLanguage==='de'?`${partNumber} bei eBay suchen`:currentLanguage==='en'?`Search ${partNumber} on eBay`:`${partNumber} için eBay'de ara`;
   ebayButtonText.textContent=currentLanguage==='de'?'Bei eBay suchen':currentLanguage==='en'?'Search on eBay':"eBay'de ara";
   document.querySelector('#wmkatOverlayQuery').textContent=`${currentLanguage==='de'?'Gesuchte Nummer':currentLanguage==='en'?'Searched number':'Aranan numara'}: ${partNumber}`;

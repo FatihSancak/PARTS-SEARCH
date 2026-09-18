@@ -5,6 +5,15 @@
     de: { parts: 'Teile', vehicles: 'Fahrzeuge', kba: 'KBA-Suche', ebay: 'eBay-Teile' },
     en: { parts: 'Parts', vehicles: 'Vehicles', kba: 'KBA Search', ebay: 'eBay Parts' }
   };
+  const marketplaceStyle = document.createElement('style');
+  marketplaceStyle.textContent = '.marketplace-badge.marketplace-partsbit{background:#e18c44!important;border-color:#c46d2c!important}.marketplace-badge.marketplace-partsbit img{width:76px!important;height:20px!important}';
+  document.head.append(marketplaceStyle);
+  const enforcePartsbitBadge = () => document.querySelectorAll('.marketplace-badge.marketplace-partsbit').forEach((badge) => {
+    badge.style.setProperty('background', '#e18c44', 'important');
+    badge.style.setProperty('border-color', '#c46d2c', 'important');
+  });
+  new MutationObserver(enforcePartsbitBadge).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+  enforcePartsbitBadge();
   labels.tr.orders='Siparişler';labels.de.orders='Bestellungen';labels.en.orders='Orders';
   const language = ['tr', 'de', 'en'].includes(localStorage.getItem('lang')) ? localStorage.getItem('lang') : 'tr';
   const current = location.pathname;

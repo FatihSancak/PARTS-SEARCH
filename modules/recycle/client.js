@@ -115,6 +115,7 @@ class RecycleClient {
     this.activeSearch = null;
     this.cache = new Map();
     this.imageCache = new Map();
+    this.vehicleImageCache = new Map();
     this.orderImageCache = new Map();
     this.cancelled = false;
   }
@@ -306,6 +307,69 @@ class RecycleClient {
       throw error;
     }
     return { contentType, body: await response.body() };
+  }
+
+  async searchVehiclesByVinSuffix(vinSuffix) {
+    const suffix = String(vinSuffix || '').trim().replace(/^\*/, '');
+    if (!/^\d{5}$/.test(suffix)) { const error = new Error('VIN son 5 hanesi gerekli.'); error.statusCode = 400; throw error; }
+    const key = `vehicle:${suffix}`;
+    const cached = this.cache.get(key);
+    if (cached && Date.now() - cached.createdAt < 10 * 60 * 1000) return cached.result;
+    if (this.activeSearch) { const error = new Error('Baska bir Recycle aramasi devam ediyor.'); error.statusCode = 429; throw error; }
+    this.activeSearch = (async () => {
+      if (!this.loggedIn) await this.login();
+      const page = await this.ensurePage();
+      await page.goto('https://recycle.baytemuer.de/recycle/vehicles_search.do', { waitUntil: 'domcontentloaded' });
+      let frame;
+      for (let attempt = 0; attempt < 30 && !frame; attempt += 1) {
+        frame = page.frames().find((item) => item.name() === 'vehiclesearchlist');
+        if (!frame) await page.waitForTimeout(200);
+      }
+      if (!frame) { const error = new Error('Recycle arac arama formu acilamadi.'); error.statusCode = 502; throw error; }
+      await frame.locator('input[name="chassis"]').fill(`*${suffix}`);
+      await frame.locator('form[name="vehiclesearch"]').evaluate((form) => form.requestSubmit());
+      await frame.waitForTimeout(800);
+      const html = await frame.content();
+      const decode = (value) => String(value || '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;/gi, '"').replace(/\s+/g, ' ').trim();
+      const results = [];
+      for (const row of html.matchAll(/<tr\b[^>]*class=["'][^"']*listcolumnBG[^"']*["'][^>]*>([\s\S]*?)<\/tr>/gi)) {
+        const source = row[1]; const select = source.match(/vehicleSelect\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]/i);
+        if (!select) continue;
+        const cells = [...source.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((cell) => decode(cell[1]));
+        const text = decode(source); const id = select[1]; const vehicleNumber = select[2];
+        results.push({ id, vehicleNumber, vin: text.match(/[A-HJ-NPR-Z0-9]{11,17}/i)?.[0] || '', title: cells.filter(Boolean).slice(1, 5).join(' · ') || vehicleNumber, detailUrl: `https://recycle.baytemuer.de/recycle/vehicle.do?vehicle=${encodeURIComponent(id)}` });
+      }
+      const unique = [...new Map(results.map((item) => [item.id, item])).values()].slice(0, 20);
+      const enriched = await Promise.all(unique.map(async (item) => { const details = await this.getVehicleImages(item.id).catch(() => ({ count: 0, fields: {} })); return { ...item, ...details.fields, imageCount: details.count }; }));
+      const result = { query: `*${suffix}`, count: enriched.length, results: enriched };
+      this.cache.set(key, { createdAt: Date.now(), result }); return result;
+    })().catch(async (error) => { await this.close(); throw error; }).finally(() => { this.activeSearch = null; });
+    return this.activeSearch;
+  }
+
+  async getVehicleImages(vehicleId) {
+    const id = String(vehicleId || '').trim();
+    if (!/^[A-Za-z0-9-]{8,80}$/.test(id)) { const error = new Error('Gecerli Recycle arac kimligi gerekli.'); error.statusCode = 400; throw error; }
+    const cached = this.vehicleImageCache.get(id); if (cached && Date.now() - cached.createdAt < 30 * 60 * 1000) return cached.result;
+    if (!this.loggedIn) await this.login(); const page = await this.ensurePage(); const detailUrl = `https://recycle.baytemuer.de/recycle/vehicle.do?vehicle=${encodeURIComponent(id)}`;
+    const response = await page.context().request.get(detailUrl); if (!response.ok()) { const error = new Error('Recycle arac detayi alinamadi.'); error.statusCode = 502; throw error; }
+    const html = await response.text(); const field = (name) => html.match(new RegExp(`name=["']${name}["'][^>]*value=["']([^"']*)`, 'i'))?.[1]?.trim() || '';
+    const fields = { brand: field('manufacturerName'), model: field('modelName'), type: field('typeName'), vin: field('chassisNumber'), plate: field('licenseNumber'), motorCode: field('motorcode'), gearboxCode: field('gearboxcode') };
+    const images = []; const seen = new Set();
+    for (const match of html.matchAll(/(?:goImage\(\s*['"]|<img\b[^>]*src=["'])([^'"]+)/gi)) {
+      const raw = match[1].replace(/&amp;/g, '&'); if (/^(?:bilder\/|\/recycle\/bilder\/|media_upload|create\.gif|pixel\.gif)/i.test(raw)) continue;
+      try { const imageUrl = new URL(raw, detailUrl); if (imageUrl.protocol === 'https:' && imageUrl.hostname === 'recycle.baytemuer.de' && !seen.has(imageUrl.toString())) { seen.add(imageUrl.toString()); images.push(imageUrl.toString()); } } catch { /* legacy link */ }
+      if (images.length >= 20) break;
+    }
+    const result = { vehicleId: id, count: images.length, images, fields }; this.vehicleImageCache.set(id, { createdAt: Date.now(), result }); return result;
+  }
+
+  async getVehicleImage(vehicleId, imageIndex) {
+    const result = await this.getVehicleImages(vehicleId); const imageUrl = result.images[Number(imageIndex)];
+    if (!imageUrl) { const error = new Error('Gorsel bulunamadi.'); error.statusCode = 404; throw error; }
+    const page = await this.ensurePage(); const response = await page.context().request.get(imageUrl);
+    if (!response.ok()) { const error = new Error('Recycle arac gorseli alinamadi.'); error.statusCode = 502; throw error; }
+    return { contentType: response.headers()['content-type'] || 'image/jpeg', body: await response.body() };
   }
 
   async getOrders(criteria = {}) {

@@ -32,6 +32,9 @@ const dictionaries = {
 Object.assign(dictionaries.tr, { average_price: 'Ortalama fiyat', price_records: '{count} kayıt · {known} kargolu · {unknown} kargo belirsiz', seller_prices: 'Tüm sayfalardan {count} fiyat', baytemuer_rankings: 'baytemuer ilanları (kargo dahil): {items}', baytemuer_rank_item: '{rank}. sırada · {price}' });
 Object.assign(dictionaries.de, { average_price: 'Durchschnittspreis', price_records: '{count} Angebote · {known} mit Versandpreis · {unknown} ohne Versandpreis', seller_prices: '{count} Preise aus allen Seiten', baytemuer_rankings: 'baytemuer-Angebote: {items}', baytemuer_rank_item: '{rank}. Platz · {price}' });
 Object.assign(dictionaries.en, { average_price: 'Average price', price_records: '{count} listings · {known} with shipping · {unknown} without shipping', seller_prices: '{count} prices from all pages', baytemuer_rankings: 'baytemuer listings: {items}', baytemuer_rank_item: 'rank {rank} · {price}' });
+Object.assign(dictionaries.tr, { top3_target: 'İlk 3 fiyat hedefi', market_stock: 'Piyasa / stok', stock_none: 'Stok yok · atölye fiyatı', stock_low: 'Stok {count} adet', stock_high: 'Stok {count} adet', stock_unknown: 'Recycle stok bilgisi yok', market_sparse: 'Seyrek', market_balanced: 'Dengeli', market_active: 'Canlı', market_dense: 'Yoğun' });
+Object.assign(dictionaries.de, { top3_target: 'Top-3 Preisziel', market_stock: 'Markt / Bestand', stock_none: 'Kein Bestand · Werkstattpreis', stock_low: 'Bestand {count}', stock_high: 'Bestand {count}', stock_unknown: 'Recycle-Bestand unbekannt', market_sparse: 'Gering', market_balanced: 'Ausgeglichen', market_active: 'Aktiv', market_dense: 'Dicht' });
+Object.assign(dictionaries.en, { top3_target: 'Top 3 price target', market_stock: 'Market / stock', stock_none: 'No stock · workshop price', stock_low: '{count} in stock', stock_high: '{count} in stock', stock_unknown: 'Recycle stock unavailable', market_sparse: 'Sparse', market_balanced: 'Balanced', market_active: 'Active', market_dense: 'Crowded' });
 const requestedLanguage = new URLSearchParams(location.search).get('lang') || localStorage.getItem('lang') || 'tr';
 const language = ['tr', 'de', 'en'].includes(requestedLanguage) ? requestedLanguage : 'tr';
 const locale = language === 'tr' ? 'tr-TR' : language === 'en' ? 'en-US' : 'de-DE';
@@ -111,11 +114,27 @@ function money(amount) {
   catch { return translate('price_unknown'); }
 }
 function resetStatistics() {
-  for (const id of ['recommendedPrice', 'quickSalePrice', 'medianPrice', 'averagePrice', 'confidenceLevel']) $(id).textContent = '—';
+  for (const id of ['recommendedPrice', 'quickSalePrice', 'medianPrice', 'averagePrice', 'confidenceLevel', 'top3Target', 'pricingPolicy', 'marketState', 'stockCount']) $(id).textContent = '—';
   $('confidenceLevel').className = '';
+  $('pricingPolicy').className = '';
+  $('marketState').parentElement.className = 'stat stat-market';
   $('priceCount').textContent = '—'; $('averagePriceCount').textContent = '—';
   $('baytemuerRankings').hidden = true;
   $('baytemuerRankings').textContent = '';
+}
+function stockPricingPolicy(allPrices, stockCount) {
+  const prices = (allPrices || []).map(Number).filter(price => Number.isFinite(price) && price >= 0).sort((a, b) => a - b);
+  if (!prices.length) return null;
+  const stockKnown = Number.isInteger(stockCount) && stockCount >= 0;
+  const thirdPrice = prices[Math.min(2, prices.length - 1)];
+  // No stock means the part may be needed in the workshop: preserve value.
+  // Stock pressure increases once the Recycle count exceeds five.
+  const factor = !stockKnown ? 1 : stockCount === 0 ? 1.08 : stockCount <= 5 ? .995 : .97;
+  const target = competitiveEnding(thirdPrice * factor);
+  const spread = prices.length > 1 && thirdPrice > 0 ? (thirdPrice - prices[0]) / thirdPrice : 0;
+  const market = prices.length <= 3 ? 'sparse' : prices.length < 12 ? 'balanced' : spread <= .25 ? 'dense' : 'active';
+  const stockLabel = !stockKnown ? translate('stock_unknown') : stockCount === 0 ? translate('stock_none') : translate(stockCount <= 5 ? 'stock_low' : 'stock_high', { count: new Intl.NumberFormat(locale).format(stockCount) });
+  return { target, market, stockLabel };
 }
 function percentile(sorted, ratio) {
   if (!sorted.length) return null;
@@ -148,7 +167,7 @@ function marketPriceModel(allPrices) {
     listings: sourcePrices.length
   };
 }
-function updateStatistics(items, shippingKnownCount = 0, shippingUnknownCount = 0, baytemuerListings = []) {
+function updateStatistics(items, shippingKnownCount = 0, shippingUnknownCount = 0, baytemuerListings = [], stockCount = null) {
   const model = marketPriceModel(items);
   if (!model) {
     resetStatistics();
@@ -166,6 +185,14 @@ function updateStatistics(items, shippingKnownCount = 0, shippingUnknownCount = 
   $('confidenceLevel').textContent = translate(`confidence_${model.confidence}`);
   $('confidenceLevel').className = `confidence-${model.confidence}`;
   $('priceCount').textContent = translate('seller_prices', { count: new Intl.NumberFormat(locale).format(model.used) });
+  const policy = stockPricingPolicy(items, stockCount);
+  if (policy) {
+    $('top3Target').textContent = money({ value: policy.target, currency: 'EUR' });
+    $('pricingPolicy').textContent = translate('shipping_target');
+    $('marketState').textContent = translate(`market_${policy.market}`);
+    $('stockCount').textContent = policy.stockLabel;
+    $('marketState').parentElement.className = `stat stat-market market-${policy.market}`;
+  }
   const rankings = Array.isArray(baytemuerListings) ? baytemuerListings : [];
   const rankingElement = $('baytemuerRankings');
   rankingElement.hidden = !rankings.length;
@@ -275,13 +302,16 @@ async function search(updateUrl = false) {
   $('results').setAttribute('aria-busy', 'true');
   $('results').replaceChildren(...Array.from({ length: 8 }, () => { const el = node('div', 'skeleton'); el.setAttribute('aria-hidden', 'true'); return el; }));
   try {
+    const stockRequest = fetch('/api/recycle/search', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ partNumber: state.q }), signal: current.signal
+    }).then(async response => response.ok ? (await response.json()).count : null).catch(() => null);
     const response = await fetch(`/api/ebay/search?${params}`, { signal: current.signal });
     const data = await response.json();
     if (!response.ok) throw new Error(translate('search_error'));
     updateEbaySearchTitle(data.items);
     $('status').replaceChildren();
     $('results').replaceChildren(...data.items.map(card));
-    updateStatistics(data.marketPrices || [], data.shippingKnownCount, data.shippingUnknownCount, data.baytemuerListings);
+    updateStatistics(data.marketPrices || [], data.shippingKnownCount, data.shippingUnknownCount, data.baytemuerListings, await stockRequest);
     $('count').textContent = translate('results_count', { count: new Intl.NumberFormat(locale).format(data.total) });
     const lastQuery = translate('last_query', { time: new Date(data.fetchedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) });
     $('updated').textContent = lastQuery + (data.cached ? ` · ${translate('cached')}` : '');

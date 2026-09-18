@@ -66,6 +66,20 @@ async function recycleModule(fastify) {
       return reply.status(error.statusCode || 502).send({ error: error.message });
     }
   });
+  fastify.post('/api/recycle/vehicles/search', async (request, reply) => {
+    const vinSuffix = String(request.body?.vinSuffix || '').trim();
+    if (!/^\*?\d{5}$/.test(vinSuffix)) return reply.status(400).send({ error: 'VIN son 5 hanesi gerekli.' });
+    try { return await client.searchVehiclesByVinSuffix(vinSuffix); }
+    catch (error) { return reply.status(error.statusCode || 502).send({ error: error.message }); }
+  });
+  fastify.get('/api/recycle/vehicles/:vehicleId/images', async (request, reply) => {
+    try { return await client.getVehicleImages(request.params?.vehicleId); }
+    catch (error) { return reply.status(error.statusCode || 502).send({ error: error.message }); }
+  });
+  fastify.get('/api/recycle/vehicles/:vehicleId/images/:imageIndex', async (request, reply) => {
+    try { const image = await client.getVehicleImage(request.params?.vehicleId, request.params?.imageIndex); return reply.type(image.contentType).header('Cache-Control', 'private, max-age=1800').send(image.body); }
+    catch (error) { return reply.status(error.statusCode || 502).send({ error: error.message }); }
+  });
   fastify.post('/api/recycle/search', async (request, reply) => {
     const partNumber = String(request.body?.partNumber || '').trim();
     if (!partNumber || partNumber.length > 100) return reply.status(400).send({ error: 'Geçerli bir partNumber gereklidir.' });

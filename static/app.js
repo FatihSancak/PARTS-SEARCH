@@ -1981,6 +1981,10 @@ async function runVehicleSearch(event) {
   button.textContent = t('loading');
   const params = new URLSearchParams(new FormData(vehicleForm));
   params.set('page', vehiclePage);
+  const vinSuffix = String(vehicleForm.elements.vin?.value || '').trim().replace(/^\*/, '');
+  const recycleVehicleRequest = /^\d{5}$/.test(vinSuffix)
+    ? fetch('/api/recycle/vehicles/search', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ vinSuffix }) })
+    : null;
   try {
     const response = await fetch(`/api/vehicles?${params}`);
     const data = await response.json();
@@ -1997,6 +2001,25 @@ async function runVehicleSearch(event) {
       <td>${vehicleKilometers(row.Kilometer)}</td><td>${vehicleStatus(row)}</td>
       <td><button class="detail-button" type="button"><span class="action-icon" aria-hidden="true">◉</span><span>${t('detail')}</span></button></td></tr>`).join('');
     renderVehiclePagination(data);
+    const recyclePanel = document.querySelector('#recycleVehicleResults');
+    recyclePanel.hidden = true;
+    recyclePanel.innerHTML = '';
+    if (recycleVehicleRequest) {
+      try {
+        const recycleResponse = await recycleVehicleRequest;
+        const recycle = await recycleResponse.json();
+        if (!recycleResponse.ok) throw new Error(recycle.error || 'Recycle araçları alınamadı');
+        recyclePanel.hidden = false;
+        recyclePanel.innerHTML = `<div class="recycle-vehicle-heading"><span>Recycle</span><strong>${esc(recycle.query)}</strong><small>${recycle.count} araç bulundu</small></div>${recycle.results.length ? recycle.results.map(item => {
+          const title = [item.brand, item.model, item.type].filter(Boolean).join(' · ') || item.title;
+          const image = item.imageCount ? `<button class="recycle-vehicle-image" data-recycle-vehicle="${esc(item.id)}" data-recycle-vehicle-title="${esc(title)}"><img src="/api/recycle/vehicles/${encodeURIComponent(item.id)}/images/0" alt="${esc(title)}"><small>${item.imageCount} fotoğraf</small></button>` : `<div class="recycle-vehicle-image no-image"><span>◇</span><small>Fotoğraf yok</small></div>`;
+          return `<article class="recycle-vehicle-card">${image}<div><div class="recycle-vehicle-meta"><b>Recycle</b><strong>Araç no: ${esc(item.vehicleNumber)}</strong></div><h3>${esc(title)}</h3><p>${esc(item.vin || '')}${item.plate ? ` · ${esc(item.plate)}` : ''}</p><p>${esc(item.motorCode || '')}${item.gearboxCode ? ` · ${esc(item.gearboxCode)}` : ''}</p></div><a href="${esc(item.detailUrl)}" target="_blank" rel="noopener noreferrer">Recycle'da aç</a></article>`;
+        }).join('') : '<p class="recycle-vehicle-empty">Recycle tarafında eşleşen araç bulunamadı.</p>'}`;
+      } catch (_) {
+        recyclePanel.hidden = false;
+        recyclePanel.innerHTML = '<p class="recycle-vehicle-empty">Recycle araç araması şu an kullanılamıyor.</p>';
+      }
+    }
   } catch (error) {
     showToast(`Araç sorgusu başarısız: ${error.message}`);
   } finally {
@@ -2004,6 +2027,18 @@ async function runVehicleSearch(event) {
     button.innerHTML = oldHtml;
   }
 }
+
+document.querySelector('#recycleVehicleResults').addEventListener('click', async event => {
+  const button = event.target.closest('[data-recycle-vehicle]');
+  if (!button) return;
+  const id = button.dataset.recycleVehicle;
+  try {
+    const response = await fetch(`/api/recycle/vehicles/${encodeURIComponent(id)}/images`);
+    const data = await response.json();
+    if (!response.ok || !data.images?.length) throw new Error('Görsel bulunamadı.');
+    window.openExternalGallery(button.dataset.recycleVehicleTitle || 'Recycle araç', data.images.map((_, index) => `/api/recycle/vehicles/${encodeURIComponent(id)}/images/${index}`));
+  } catch (error) { showToast(error.message); }
+});
 
 function showVehicleDetail(row) {
   const fields = [

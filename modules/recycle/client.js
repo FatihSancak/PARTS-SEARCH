@@ -39,6 +39,24 @@ const orderDetailFields = (html) => {
     .replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (_, hex, decimal) => String.fromCodePoint(parseInt(hex || decimal, hex ? 16 : 10)))
     .replace(/\s+/g, ' ').trim();
   const result = {};
+  let physicalStorageFound = false;
+  // Recycle renders the physical "Lager" value separately from its order
+  // state. Read it first so that "reserviert Nein" can never become a depot.
+  for (const labelMatch of String(html || '').matchAll(/(?:^|>)\s*Lager\s*(?=<|:)/gi)) {
+    const afterLabel = String(html || '').slice(labelMatch.index, labelMatch.index + 1400);
+    const nextField = afterLabel.search(/<td\b[^>]*class\s*=\s*["'][^"']*fieldname/i);
+    const section = afterLabel.slice(0, nextField > 0 ? nextField : afterLabel.length);
+    const fixSet = section.match(/FixSet\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]*)['"]/i);
+    const input = section.match(/<input\b[^>]*>/i)?.[0];
+    const valueMatch = input?.match(/\bvalue\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+    const rawValue = fixSet?.[1] || valueMatch?.[1] || valueMatch?.[2] || valueMatch?.[3] || '';
+    const value = decode(String(rawValue).replace(/\s*<br\s*\/?>(?:\s*)/gi, ' · '));
+    if (value && !/^(?:null|undefined|fixset\s*\(|reserviert\b)/i.test(value)) {
+      result.location = value;
+      physicalStorageFound = true;
+      break;
+    }
+  }
   // The part-detail page stores its internal article number in a legacy
   // JavaScript field instead of a visible "Artikelnummer" table cell.
   for (const match of String(html || '').matchAll(/FixSet\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]*)['"]/gi)) {
@@ -52,7 +70,7 @@ const orderDetailFields = (html) => {
       const value = cells[index + 1];
       if (!value) continue;
       if (!result.articleNumber && /^(artikelnummer|artikelnr|artnr)$/.test(label)) result.articleNumber = value;
-      if (!result.location && /^(lagerort|lagerplatz)$/.test(label)) result.location = value;
+      if (/^(lager|lagerort|lagerplatz)$/.test(label) && !physicalStorageFound && !/^reserviert\b/i.test(value)) result.location = value;
       if (!result.total && /^(gesamt(?:betrag|summe)?|summe|rechnungsbetrag|endbetrag|brutto)$/.test(label) && /(?:€|EUR)/i.test(value)) result.total = value;
     }
     const rowText = decode(row[1]);
@@ -104,6 +122,9 @@ const orderDetailFields = (html) => {
     const match = allText.match(/(?:gesamt(?:betrag|summe)?|rechnungsbetrag|endbetrag|summe)\s*:?\s*([\d.,\s]+(?:€|EUR))/i);
     if (match) result.total = match[1].trim();
   }
+  // A reservation state is never a storage location. Hide it if this legacy
+  // template did not supply a real Lager/Lagerort field.
+  if (/^reserviert\b/i.test(String(result.location || '').trim())) delete result.location;
   return result;
 };
 
@@ -445,10 +466,15 @@ class RecycleClient {
         const productName = linkMatch ? String(linkMatch[1]).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim() : '';
         const nameLink = detailLinks.find(link => /ShowPart/i.test(link.href) && link.label);
         const partFields = await this.getProductFields(partPk).catch(() => ({}));
+        // The commissioning-list row may describe reservation status as a
+        // "Lagerort". Only a value resolved from the order/product detail is
+        // a physical storage location.
+        const resolvedLocation = partFields.location || fields.location || '';
         return {
           ...order,
           ...fields,
           ...partFields,
+          location: resolvedLocation,
           price: fields.total || order.price,
           detailUrl,
           detailLinks,

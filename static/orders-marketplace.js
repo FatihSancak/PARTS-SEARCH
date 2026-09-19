@@ -11,3 +11,9 @@
 })();
   const moveMarketplaceFirst=()=>document.querySelectorAll('.meta .marketplace-badge').forEach(badge=>{if(badge.parentElement?.firstElementChild!==badge)badge.parentElement.prepend(badge)});
   new MutationObserver(moveMarketplaceFirst).observe(document.querySelector('#orders'),{childList:true,subtree:true});
+  const cleanLocationBadge=()=>document.querySelectorAll('.order-article span').forEach(badge=>{
+    if(!/^(?:Depo konumu|Lagerort|Storage location):/i.test(badge.textContent))return;
+    badge.textContent=badge.textContent.replace(/^[^:]+:\s*/,'').split(/\s*·\s*/)[0];
+  });
+  new MutationObserver(cleanLocationBadge).observe(document.querySelector('#orders'),{childList:true,subtree:true});
+  cleanLocationBadge();

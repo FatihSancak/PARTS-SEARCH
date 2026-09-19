@@ -4,6 +4,16 @@ const RecycleClient = require('./client');
 
 const reminderEnabled = !['false', '0', 'no', 'off'].includes(String(process.env.RECYCLE_ORDER_REMINDER_ENABLED || 'true').trim().toLowerCase());
 const reminderIntervalMinutes = Math.min(Math.max(Number(process.env.RECYCLE_ORDER_REMINDER_INTERVAL_MINUTES) || 5, 1), 1440);
+const reminderStartMinute = Math.min(Math.max(Number.parseInt(process.env.RECYCLE_ORDER_REMINDER_START_MINUTE, 10) || 0, 0), 59);
+
+function nextReminderTime(now = new Date()) {
+  // The start minute is relative to midnight: 15/0 runs at :00, :15, :30, :45.
+  const next = new Date(now);
+  next.setHours(0, reminderStartMinute, 0, 0);
+  const intervalMs = reminderIntervalMinutes * 60 * 1000;
+  while (next <= now) next.setTime(next.getTime() + intervalMs);
+  return next;
+}
 
 async function recycleModule(fastify) {
   const client = new RecycleClient();
@@ -24,14 +34,24 @@ async function recycleModule(fastify) {
     } catch (error) { fastify.log.warn({ err: error }, 'Recycle order scan failed'); }
     finally { scanInProgress = false; }
   };
-  const startupScan = reminderEnabled ? setTimeout(scanOrders, 5000) : null;
-  const orderInterval = reminderEnabled ? setInterval(scanOrders, reminderIntervalMinutes * 60 * 1000) : null;
+  let reminderTimer = null;
+  const scheduleNextScan = () => {
+    if (!reminderEnabled) return;
+    const next = nextReminderTime();
+    reminderTimer = setTimeout(async () => {
+      await scanOrders();
+      scheduleNextScan();
+    }, Math.max(next.getTime() - Date.now(), 1));
+    fastify.log.info({ nextReminderAt: next.toISOString(), reminderIntervalMinutes, reminderStartMinute }, 'Recycle order reminder scheduled');
+  };
+  scheduleNextScan();
   fastify.get('/api/recycle/order-alerts', async () => ({
     orders: [...pendingOrders.values()],
     lastScanAt,
     scanning: scanInProgress,
     enabled: reminderEnabled,
-    intervalMinutes: reminderIntervalMinutes
+    intervalMinutes: reminderIntervalMinutes,
+    startMinute: reminderStartMinute
   }));
   fastify.post('/api/recycle/order-alerts/acknowledge', async (request) => {
     const ids = Array.isArray(request.body?.ids) ? request.body.ids : [];
@@ -108,7 +128,7 @@ async function recycleModule(fastify) {
     }
   });
   fastify.post('/api/recycle/cancel', async () => { await client.cancel(); return { cancelled: true }; });
-  fastify.addHook('onClose', async () => { clearTimeout(startupScan); clearInterval(orderInterval); await client.close(); });
+  fastify.addHook('onClose', async () => { clearTimeout(reminderTimer); await client.close(); });
 }
 
 module.exports = recycleModule;

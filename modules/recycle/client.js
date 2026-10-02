@@ -27,9 +27,19 @@ const normalizeRecyclePartNumber = (value) => String(value || '')
   .replace(/[\u0300-\u036f]/g, '')
   .replace(/[^A-Z0-9*]/g, '');
 
+const salesChannelPattern = /\b(eBay|Ovoko|Teilehaber|Autoteilemarkt|PartsBits?|Opisto)\b/i;
+const validStorageLocation = (value) => {
+  const location = String(value || '').replace(/\s+/g, ' ').trim();
+  return location && !/^(?:null|undefined|fixset\s*\(|reserviert\b|preis(?:\s*\/\s*einheit)?|verkaufspreis|einkaufspreis|menge|status)$/i.test(location) ? location : '';
+};
+
 // Order details are legacy HTML tables. Field positions vary by sales channel,
 // so extract label/value pairs instead of relying on a fixed column index.
 const orderDetailFields = (html) => {
+  const source = String(html || '');
+  const formSource = source
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
   const decode = (value) => String(value || '')
     .replace(/<br\s*\/?>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
@@ -38,6 +48,28 @@ const orderDetailFields = (html) => {
     .replace(/&quot;/gi, '"')
     .replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (_, hex, decimal) => String.fromCodePoint(parseInt(hex || decimal, hex ? 16 : 10)))
     .replace(/\s+/g, ' ').trim();
+  const inputValue = (input) => {
+    for (const attribute of String(input || '').matchAll(/(?:^|\s)([\w:-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g)) {
+      if (attribute[1].toLowerCase() === 'value') return attribute[2] || attribute[3] || attribute[4] || '';
+    }
+    return '';
+  };
+  // The vehicle section of the part page is a legacy form. Its labels are
+  // visible text, but the values (for example, Hersteller -> VW) are held in
+  // the following input element and are therefore absent from decoded text.
+  const legacyFieldValue = (labels) => {
+    for (const label of labels) {
+      const matcher = new RegExp(`(?:^|>)\\s*${label}\\s*(?=<|:)`, 'gi');
+      for (const match of formSource.matchAll(matcher)) {
+        const field = formSource.slice(match.index, match.index + 900);
+        const input = field.match(/<input\b(?:"[^"]*"|'[^']*'|[^'">])*?>/i)?.[0];
+        const textarea = field.match(/<textarea\b[^>]*>([\s\S]*?)<\/textarea>/i);
+        const value = decode(inputValue(input) || textarea?.[1] || '');
+        if (value) return value;
+      }
+    }
+    return '';
+  };
   const result = {};
   let physicalStorageFound = false;
   // Recycle renders the physical "Lager" value separately from its order
@@ -47,11 +79,10 @@ const orderDetailFields = (html) => {
     const nextField = afterLabel.search(/<td\b[^>]*class\s*=\s*["'][^"']*fieldname/i);
     const section = afterLabel.slice(0, nextField > 0 ? nextField : afterLabel.length);
     const fixSet = section.match(/FixSet\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]*)['"]/i);
-    const input = section.match(/<input\b[^>]*>/i)?.[0];
-    const valueMatch = input?.match(/\bvalue\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
-    const rawValue = fixSet?.[1] || valueMatch?.[1] || valueMatch?.[2] || valueMatch?.[3] || '';
+    const input = section.match(/<input\b(?:"[^"]*"|'[^']*'|[^'">])*?>/i)?.[0];
+    const rawValue = fixSet?.[1] || inputValue(input) || '';
     const value = decode(String(rawValue).replace(/\s*<br\s*\/?>(?:\s*)/gi, ' · '));
-    if (value && !/^(?:null|undefined|fixset\s*\(|reserviert\b)/i.test(value)) {
+    if (validStorageLocation(value)) {
       result.location = value;
       physicalStorageFound = true;
       break;
@@ -70,7 +101,7 @@ const orderDetailFields = (html) => {
       const value = cells[index + 1];
       if (!value) continue;
       if (!result.articleNumber && /^(artikelnummer|artikelnr|artnr)$/.test(label)) result.articleNumber = value;
-      if (/^(lager|lagerort|lagerplatz)$/.test(label) && !physicalStorageFound && !/^reserviert\b/i.test(value)) result.location = value;
+      if (/^(lager|lagerort|lagerplatz)$/.test(label) && !physicalStorageFound && validStorageLocation(value)) result.location = value;
       if (!result.total && /^(gesamt(?:betrag|summe)?|summe|rechnungsbetrag|endbetrag|brutto)$/.test(label) && /(?:€|EUR)/i.test(value)) result.total = value;
     }
     const rowText = decode(row[1]);
@@ -89,13 +120,18 @@ const orderDetailFields = (html) => {
   }
   // Some Recycle templates put fields in nested tables or divs, where a
   // row-based parser cannot see the label/value cells together.
-  const allText = decode(String(html || '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ''));
+  const allText = decode(source.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ''));
+  // Prefer the actual vehicle data from the product page over guessing a
+  // marque from the part title. This is also what supplies order card logos.
+  if (!result.brand) result.brand = legacyFieldValue(['Hersteller', 'Marke']);
+  if (!result.model) result.model = legacyFieldValue(['Modell']);
+  if (!result.type) result.type = legacyFieldValue(['Typ']);
   if (!result.articleNumber) {
     const match = allText.match(/(?:artikel\s*[-.]?\s*(?:nummer|nr\.?)|art\.?\s*nr\.?)\s*:?\s*([A-Z0-9][A-Z0-9._/-]{2,})/i);
     if (match) result.articleNumber = match[1];
   }
   if (!result.oldArticleNumber) {
-    const match = allText.match(/alte\s+teilenummer\s*:\s*([A-Z0-9][A-Z0-9._/-]{2,})/i);
+    const match = allText.match(/(?:alte\s+(?:teile|artikel)(?:nummer|nr\.?)|old\s+article(?:\s*(?:number|no\.?))?)\s*:\s*([A-Z0-9][A-Z0-9._/-]{2,})/i);
     if (match) result.oldArticleNumber = match[1];
   }
   if (!result.location) {
@@ -122,9 +158,33 @@ const orderDetailFields = (html) => {
     const match = allText.match(/(?:gesamt(?:betrag|summe)?|rechnungsbetrag|endbetrag|summe)\s*:?\s*([\d.,\s]+(?:€|EUR))/i);
     if (match) result.total = match[1].trim();
   }
+  // Keep the product page as the source of truth for the order card. These
+  // values are grouped so order-list fields and product fields cannot
+  // overwrite each other as legacy Recycle templates change.
+  const product = {
+    articleNumber: result.articleNumber || legacyFieldValue(['Teilennummer', 'Artikelnummer']),
+    name: legacyFieldValue(['Name f.r Internetb.rsen', 'Name fuer Internetboersen']),
+    location: validStorageLocation(result.location)
+      || validStorageLocation(legacyFieldValue(['Lager', 'Lagerort', 'Lagerplatz'])),
+    condition: legacyFieldValue(['Zustand']),
+    salePrice: legacyFieldValue(['Verkaufspreis']),
+    oeNumbers: legacyFieldValue(['OE-Nummern', 'OE Nummern']),
+    vehicle: {
+      number: legacyFieldValue(['Fahrzeugnummer']),
+      brand: result.brand || legacyFieldValue(['Hersteller', 'Marke']),
+      model: result.model || legacyFieldValue(['Modell']),
+      type: result.type || legacyFieldValue(['Typ']),
+      power: legacyFieldValue(['Leistung']),
+      displacement: legacyFieldValue(['Hubraum']),
+      buildPeriod: legacyFieldValue(['Bauzeit'])
+    }
+  };
+  if (/\bfixset\s*\(/i.test(product.location)) product.location = '';
+  if (Object.values(product).some(value => typeof value === 'string' && value) || Object.values(product.vehicle).some(Boolean)) result.product = product;
   // A reservation state is never a storage location. Hide it if this legacy
   // template did not supply a real Lager/Lagerort field.
-  if (/^reserviert\b/i.test(String(result.location || '').trim())) delete result.location;
+  result.location = validStorageLocation(result.location);
+  if (!result.location) delete result.location;
   return result;
 };
 
@@ -394,6 +454,21 @@ class RecycleClient {
   }
 
   async getOrders(criteria = {}) {
+    let lastError;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await this.getOrdersOnce(criteria);
+      } catch (error) {
+        lastError = error;
+        const retryable = /ERR_ABORTED|Execution context was destroyed|Target page, context or browser has been closed/i.test(String(error?.message || error));
+        if (!retryable || attempt === 1) throw error;
+        await this.close();
+      }
+    }
+    throw lastError;
+  }
+
+  async getOrdersOnce(criteria = {}) {
     if (!this.loggedIn) await this.login();
     const number = (value, min, max, fallback) => {
       const parsed = Number.parseInt(value, 10);
@@ -438,9 +513,10 @@ class RecycleClient {
       const imageId = row.imageUrl ? `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 10)}` : '';
       if (imageId) this.orderImageCache.set(imageId, { url: row.imageUrl, createdAt: Date.now() });
       const price = values.find(value => /(?:€|EUR)/i.test(value)) || '';
-      // Verkaufskanal is the eighth column on Recycle's commissioning list;
-      // do not mistake the adjacent payment method for the sales channel.
-      const source = values[7] || values.find(value => /\b(eBay|Ovoko|Teilehaber|Autoteilemarkt|PartsBits|Opisto)\b/i.test(value)) || '';
+      // Column positions vary between Recycle order templates. Find the
+      // known marketplace name anywhere in the row instead of treating the
+      // customer-type column (for example, "Kunde") as a sales channel.
+      const source = values.find(value => salesChannelPattern.test(value)) || '';
       const location = values.find(value => /(?:lager(?:ort|platz)?|storage|shelf|regal|fach)\s*[:#-]/i.test(value)) || '';
       const orderLink = row.links.find(link => /(?:commission|order|auftrag|showOrder)/i.test(`${link.href} ${link.onclick}`));
       // Some Recycle rows use an inline showOrder(...) handler instead of a
@@ -469,7 +545,8 @@ class RecycleClient {
         // The commissioning-list row may describe reservation status as a
         // "Lagerort". Only a value resolved from the order/product detail is
         // a physical storage location.
-        const resolvedLocation = partFields.location || fields.location || '';
+        const resolvedLocation = validStorageLocation(partFields.location)
+          || validStorageLocation(fields.location);
         return {
           ...order,
           ...fields,
@@ -484,6 +561,18 @@ class RecycleClient {
         };
       } catch { return order; }
     }));
+    const orderTime = (order) => {
+      const match = String(order.date || '').match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+      return match ? Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1])) : 0;
+    };
+    // Recycle does not guarantee list order. Show the most recent order first;
+    // its sequential order code breaks ties for orders from the same day.
+    orders.sort((a, b) => orderTime(b) - orderTime(a) || String(b.orderCode || '').localeCompare(String(a.orderCode || ''), undefined, { numeric: true }));
+    // Never expose legacy JavaScript placeholders as a depot location, even
+    // when a channel-specific detail template bypasses a field parser.
+    for (const order of orders) {
+      if (/\bFixSet\s*\(/i.test(String(order.location || ''))) delete order.location;
+    }
     return { range: { start, end }, count: orders.length, orders, showOrderFunction };
   }
 

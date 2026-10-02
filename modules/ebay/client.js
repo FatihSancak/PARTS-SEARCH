@@ -179,6 +179,7 @@ class EbayClient {
       feedbackScore: Number.isInteger(item.seller?.feedbackScore) ? item.seller.feedbackScore : null,
       // Browse Seller exposes feedback, but no seller-wide total sales count.
       sellerTotalSales: null,
+      country: String(item.itemLocation?.country || '').trim().toUpperCase(),
       location: [item.itemLocation?.city, item.itemLocation?.postalCode].filter(Boolean).join(' '),
       condition: item.condition || null
     })).filter(item => item.url);

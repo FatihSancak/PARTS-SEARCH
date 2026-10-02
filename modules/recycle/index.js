@@ -15,9 +15,124 @@ function nextReminderTime(now = new Date()) {
   return next;
 }
 
-async function recycleModule(fastify) {
+async function recycleModule(fastify, options = {}) {
   const client = new RecycleClient();
   const pendingOrders = new Map();
+  // Recycle uses one browser page per client. Serialise order reads so a
+  // scheduled scan and a user request can never navigate that page at the
+  // same time and destroy each other's Playwright execution context.
+  let orderQueue = Promise.resolve();
+  const getOrdersSafely = (criteria) => {
+    const task = orderQueue.catch(() => {}).then(async () => {
+      const result = await client.getOrders(criteria);
+      await fillMissingOrderLocations(result, options);
+      return fillMissingOrderBrands(result, options);
+    });
+    orderQueue = task.catch(() => {});
+    return task;
+  };
+
+  const hasLocation = (value) => String(value || '').trim().length > 0;
+  const normalizePartNumber = options.normalizePartNumber || (value => String(value || '').replace(/[^a-z0-9]/gi, '').toUpperCase());
+  async function fillMissingOrderLocations(result, dbOptions) {
+    if (!dbOptions.getDbPool || !dbOptions.sql || !Array.isArray(result?.orders)) return result;
+
+    const oldArticleNumbers = [...new Set(result.orders
+      .filter(order => !hasLocation(order.location) && String(order.oldArticleNumber || '').trim())
+      .map(order => normalizePartNumber(order.oldArticleNumber))
+      .filter(Boolean))];
+    if (!oldArticleNumbers.length) return result;
+
+    try {
+      const dbPool = await dbOptions.getDbPool();
+      const request = dbPool.request();
+      const inputs = oldArticleNumbers.map((number, index) => {
+        const name = `oldArticle${index}`;
+        request.input(name, dbOptions.sql.NVarChar, number);
+        return `@${name}`;
+      });
+      // Both article-number fields occur in ESS installations. Locations from
+      // either Lagerort or Lagerplatz are accepted, but blank values are not.
+      const normalizeSql = expression => `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(UPPER(CONVERT(NVARCHAR(4000), ${expression})), N' ', N''), N'-', N''), N'.', N''), N'/', N''), N'_', N'')`;
+      const resultSet = await request.query(`
+        SELECT ${normalizeSql('g.[Artikelnummer]')} AS articleNumber,
+               COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(255), g.[Lagerort]))), ''),
+                        NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(255), g.[Lagerplatz]))), '')) AS location
+        FROM dbo.Gebrauchtteile g
+        WHERE ${normalizeSql('g.[Artikelnummer]')} IN (${inputs.join(', ')})
+          AND COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(255), g.[Lagerort]))), ''),
+                       NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(255), g.[Lagerplatz]))), '')) IS NOT NULL
+        UNION ALL
+        SELECT ${normalizeSql('g.[ArtikelNr]')} AS articleNumber,
+               COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(255), g.[Lagerort]))), ''),
+                        NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(255), g.[Lagerplatz]))), '')) AS location
+        FROM dbo.Gebrauchtteile g
+        WHERE ${normalizeSql('g.[ArtikelNr]')} IN (${inputs.join(', ')})
+          AND COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(255), g.[Lagerort]))), ''),
+                       NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(255), g.[Lagerplatz]))), '')) IS NOT NULL;
+      `);
+      const locationsByArticle = new Map();
+      for (const row of resultSet.recordset) {
+        if (!locationsByArticle.has(row.articleNumber)) locationsByArticle.set(row.articleNumber, row.location);
+      }
+      for (const order of result.orders) {
+        if (hasLocation(order.location)) continue;
+        const location = locationsByArticle.get(normalizePartNumber(order.oldArticleNumber));
+        if (location) order.location = location;
+      }
+    } catch (error) {
+      // ESS lookup must not prevent the order list from being displayed.
+      fastify.log.warn({ err: error }, 'ESS storage-location lookup for orders failed');
+    }
+    return result;
+  }
+
+  async function fillMissingOrderBrands(result, dbOptions) {
+    if (!dbOptions.getDbPool || !dbOptions.sql || !Array.isArray(result?.orders)) return result;
+
+    const articleNumbers = [...new Set(result.orders
+      .filter(order => !String(order.brand || '').trim() && String(order.articleNumber || '').trim())
+      .map(order => normalizePartNumber(order.articleNumber))
+      .filter(Boolean))];
+    if (!articleNumbers.length) return result;
+
+    try {
+      const dbPool = await dbOptions.getDbPool();
+      const request = dbPool.request();
+      const inputs = articleNumbers.map((number, index) => {
+        const name = `orderArticle${index}`;
+        request.input(name, dbOptions.sql.NVarChar, number);
+        return `@${name}`;
+      });
+      const normalizeSql = expression => `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(UPPER(CONVERT(NVARCHAR(4000), ${expression})), N' ', N''), N'-', N''), N'.', N''), N'/', N''), N'_', N'')`;
+      const resultSet = await request.query(`
+        SELECT ${normalizeSql('g.[Artikelnummer]')} AS articleNumber,
+               LTRIM(RTRIM(CONVERT(nvarchar(255), g.[Marke]))) AS brand
+        FROM dbo.Gebrauchtteile g
+        WHERE ${normalizeSql('g.[Artikelnummer]')} IN (${inputs.join(', ')})
+          AND NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(255), g.[Marke]))), '') IS NOT NULL
+        UNION ALL
+        SELECT ${normalizeSql('g.[ArtikelNr]')} AS articleNumber,
+               LTRIM(RTRIM(CONVERT(nvarchar(255), g.[Marke]))) AS brand
+        FROM dbo.Gebrauchtteile g
+        WHERE ${normalizeSql('g.[ArtikelNr]')} IN (${inputs.join(', ')})
+          AND NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(255), g.[Marke]))), '') IS NOT NULL;
+      `);
+      const brandsByArticle = new Map();
+      for (const row of resultSet.recordset) {
+        if (!brandsByArticle.has(row.articleNumber)) brandsByArticle.set(row.articleNumber, row.brand);
+      }
+      for (const order of result.orders) {
+        if (String(order.brand || '').trim()) continue;
+        const brand = brandsByArticle.get(normalizePartNumber(order.articleNumber));
+        if (brand) order.brand = brand;
+      }
+    } catch (error) {
+      // The order list remains usable when the optional ESS brand lookup fails.
+      fastify.log.warn({ err: error }, 'ESS brand lookup for orders failed');
+    }
+    return result;
+  }
   let scanInProgress = false;
   let lastScanAt = null;
   const scanOrders = async () => {
@@ -25,7 +140,7 @@ async function recycleModule(fastify) {
     scanInProgress = true;
     try {
       const today = new Date(); const start = new Date(today); start.setDate(start.getDate() - 2);
-      const result = await client.getOrders({ from: { day: start.getDate(), month: start.getMonth() + 1, year: start.getFullYear() }, to: { day: today.getDate(), month: today.getMonth() + 1, year: today.getFullYear() } });
+      const result = await getOrdersSafely({ from: { day: start.getDate(), month: start.getMonth() + 1, year: start.getFullYear() }, to: { day: today.getDate(), month: today.getMonth() + 1, year: today.getFullYear() } });
       for (const order of result.orders) {
         const id = Buffer.from([order.orderCode, order.date, order.name, order.price].join('|')).toString('base64url');
         if (!pendingOrders.has(id)) pendingOrders.set(id, { ...order, id, detectedAt: new Date().toISOString() });
@@ -60,7 +175,7 @@ async function recycleModule(fastify) {
   });
   fastify.get('/api/recycle/status', async () => client.status());
   fastify.post('/api/recycle/orders', async (request, reply) => {
-    try { return await client.getOrders(request.body || {}); }
+    try { return await getOrdersSafely(request.body || {}); }
     catch (error) { return reply.status(error.statusCode || 502).send({ error: error.message }); }
   });
   fastify.get('/api/recycle/orders/images/:imageId', async (request, reply) => {

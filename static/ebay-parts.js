@@ -38,6 +38,12 @@ Object.assign(dictionaries.en, { top3_target: 'Top 3 price target', market_stock
 const requestedLanguage = new URLSearchParams(location.search).get('lang') || localStorage.getItem('lang') || 'tr';
 const language = ['tr', 'de', 'en'].includes(requestedLanguage) ? requestedLanguage : 'tr';
 const locale = language === 'tr' ? 'tr-TR' : language === 'en' ? 'en-US' : 'de-DE';
+const regionNames = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames([locale], { type: 'region' }) : null;
+const countryName = value => {
+  const code = String(value || '').trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) return '';
+  try { return regionNames?.of(code) || code; } catch { return code; }
+};
 const translate = (key, values = {}) => Object.entries(values).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, value), dictionaries[language][key] || key);
 function applyLanguage() {
   document.documentElement.lang = language;
@@ -251,7 +257,23 @@ function card(item) {
   if (item.feedbackPercentage != null && String(item.feedbackPercentage).trim() !== '' && Number.isFinite(Number(item.feedbackPercentage))) {
     feedback.push(translate('positive', { value: new Intl.NumberFormat(locale).format(Number(item.feedbackPercentage)) }));
   }
-  if (feedback.length) details.append(node('div', 'seller-feedback', feedback.join(' · ')));
+  if (feedback.length) {
+    const countryCode = String(item.country || '').trim().toUpperCase();
+    const foreignCountry = countryCode && countryCode !== 'DE' ? countryName(countryCode) : '';
+    const feedbackLine = node('div', 'seller-feedback');
+    if (foreignCountry) {
+      const flag = node('img', 'seller-country-flag');
+      flag.src = `https://flagcdn.com/24x18/${countryCode.toLowerCase()}.png`;
+      flag.alt = foreignCountry;
+      flag.title = foreignCountry;
+      flag.loading = 'lazy';
+      flag.referrerPolicy = 'no-referrer';
+      flag.addEventListener('error', () => flag.remove());
+      feedbackLine.append(flag);
+    }
+    feedbackLine.append(document.createTextNode(feedback.join(' · ')));
+    details.append(feedbackLine);
+  }
   const pricing = node('div', 'pricing');
   pricing.append(node('div', 'price', money(item.price)));
   const shippingKnown = item.shipping?.value != null && String(item.shipping.value).trim() !== ''

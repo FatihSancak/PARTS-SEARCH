@@ -1,0 +1,73 @@
+/* Shared application shell: header navigation, footer navigation and service status. */
+.site-nav-header {
+  box-sizing: border-box !important;
+  width: 100%; min-height: 72px !important; height: auto !important;
+  padding: 10px max(22px, calc((100vw - 1480px) / 2)) !important;
+  display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 18px !important;
+  background: #fff !important; border-bottom: 2px solid #172a34 !important;
+}
+.site-nav-header > a:first-child, .site-nav-header > .brand { flex: 0 0 auto; }
+.site-nav-header > a:first-child img, .site-nav-header .site-logo { display: block; width: auto; max-width: 190px; max-height: 50px; }
+.site-nav-header .top-actions { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.site-nav {
+  box-sizing: border-box; display: flex !important; align-items: center !important; gap: 2px !important;
+  padding: 4px !important; border: 1px solid #d6e0e2 !important; border-radius: 999px !important; background: #f4f7f7 !important;
+}
+.site-nav .menu-button {
+  box-sizing: border-box; min-width: 0; height: 34px !important; margin: 0 !important; padding: 0 14px !important;
+  display: inline-flex !important; align-items: center; justify-content: center; border: 0 !important; border-radius: 999px !important;
+  background: transparent !important; color: #536a72 !important; text-decoration: none !important; white-space: nowrap;
+  font: 800 10px Inter, "Segoe UI", Arial, sans-serif !important; letter-spacing: .045em; text-transform: uppercase; cursor: pointer;
+}
+.site-nav .menu-button:hover, .site-nav .menu-button:focus-visible { background: #e5eeed !important; color: #146c60 !important; }
+.site-nav .menu-button.active, .site-nav .menu-button[aria-current="page"] { background: #146c60 !important; color: #fff !important; }
+.site-shell-footer {
+  box-sizing: border-box; width: min(1480px, calc(100% - 32px)) !important; min-height: 58px;
+  margin: 18px auto 22px !important; padding: 12px 16px !important; display: flex !important;
+  align-items: center !important; justify-content: space-between !important; gap: 18px;
+  border-top: 1px solid #d6e0e2 !important; background: transparent !important; color: #61747c !important;
+  font: 600 10px Inter, "Segoe UI", Arial, sans-serif !important; text-align: left !important;
+}
+.site-footer-menu { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.site-footer-link { padding: 6px 8px; border-radius: 6px; color: #61747c !important; text-decoration: none !important; white-space: nowrap; }
+.site-footer-link:hover, .site-footer-link.active { background: #e7efed; color: #146c60 !important; }
+.site-footer-meta, .site-footer-status, .site-shell-footer .footer-signature { display: flex !important; align-items: center; }
+.site-footer-meta { gap: 12px; }
+.site-shell-footer .footer-signature { gap: 8px; white-space: nowrap; }
+.site-shell-footer .footer-signature i { display: none; }
+.site-footer-status {
+  width: 20px !important; height: 20px !important; min-width: 20px; justify-content: center; padding: 0 !important;
+  border: 1px solid #cbd8d7 !important; border-radius: 50% !important; background: #fff !important; cursor: help;
+}
+.site-footer-status .site-status-dot, .site-footer-status > span:first-child {
+  width: 7px !important; height: 7px !important; display: block !important; border: 0 !important; border-radius: 50% !important;
+  background: #9aa9ad !important; box-shadow: 0 0 0 3px rgba(154, 169, 173, .16) !important;
+}
+.site-footer-status.ok .site-status-dot, .site-footer-status.ok > span:first-child {
+  background: #21a574 !important; box-shadow: 0 0 0 3px rgba(33, 165, 116, .16), 0 0 8px rgba(33, 165, 116, .5) !important;
+}
+.site-footer-status.bad .site-status-dot, .site-footer-status.bad > span:first-child {
+  background: #d94b42 !important; box-shadow: 0 0 0 3px rgba(217, 75, 66, .15) !important;
+}
+.site-footer-status .site-status-text, .site-footer-status > span:not(:first-child) { display: none !important; }
+.marketplace-badge {
+  display: inline-flex !important; align-items: center !important; justify-content: center !important; min-height: 25px !important;
+  padding: 4px 8px !important; border: 1px solid #d7e2e3 !important; border-radius: 7px !important; background: #fff !important;
+}
+.marketplace-badge img { display: block; max-width: 86px; max-height: 17px; }
+.marketplace-teilehaber { background: #152d3c !important; border-color: #152d3c !important; }
+.marketplace-teilehaber img { max-height: 15px; }
+.marketplace-partsbit { background: #e18c44 !important; border-color: #c46d2c !important; }
+.marketplace-partsbit img { width: 76px !important; height: 20px !important; }
+@media (max-width: 900px) {
+  .site-nav-header { flex-wrap: wrap; padding: 10px 16px !important; }
+  .site-nav-header .top-actions { flex: 1 1 auto; }
+  .site-nav { order: 5; width: 100%; overflow-x: auto; }
+  .site-nav .menu-button { flex: 1 0 auto; padding: 0 11px !important; }
+}
+@media (max-width: 700px) {
+  .site-shell-footer { flex-direction: column; align-items: center !important; text-align: center !important; }
+  .site-footer-menu { justify-content: center; }
+  .site-footer-meta { flex-direction: column; }
+  .site-shell-footer .footer-signature { white-space: normal; flex-wrap: wrap; justify-content: center; }
+}

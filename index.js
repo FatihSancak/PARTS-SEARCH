@@ -314,7 +314,13 @@ fastify.register(require('./modules/wmkat'), {
         references, unit, getDbPool, sql, selectColumns: SELECT_COLUMNS, formatRow
     })
 });
-fastify.register(require('./modules/recycle'));
+fastify.register(require('./modules/recycle'), {
+    // Siparişlerde Recycle depo konumu boş kaldığında, eski artikel numarası
+    // üzerinden ESS stok kaydındaki fiziksel konumu tamamlamak için kullanılır.
+    getDbPool,
+    sql,
+    normalizePartNumber: normalizePartSearchValue
+});
 fastify.register(require('./modules/ebay'));
 fastify.register(require('./modules/ovoko'));
 
@@ -704,7 +710,7 @@ fastify.get('/api/sales-report', { preHandler: requireAnyReportSession }, async 
             }
         }
         staff.FER = staff.FER || 'Feras J. Alterek';
-        return { read_only: true, year, month, day, source: `${source.database}.${source.schema}.${source.table}`, fields: { date: source.date.name, person: source.person.name, amount: source.amount.name, unit: unitColumn ? unitColumn.name : null }, units: SALES_UNIT_NAMES, staff, rows };
+        return { read_only: true, year, month, day, source: `${source.database}.${source.schema}.${source.table}`, fields: { date: source.date.name, person: source.person.name, amount: source.amount.name, number: source.number ? source.number.name : null, unit: unitColumn ? unitColumn.name : null }, units: SALES_UNIT_NAMES, staff, rows };
     } catch (err) {
         reply.status(500).send({ error: err.message, read_only: true });
     }
@@ -716,9 +722,30 @@ fastify.get('/api/sales-report/invoice/:document', { preHandler: requireAnyRepor
         const document = String(request.params.document || '').trim();
         if (!document || document.length > 100) return reply.status(400).send({ error: 'GeÃ§ersiz fatura numarasÄ±.', read_only: true });
         const reportDatabases = String(process.env.WORK_REPORT_DB_DATABASES || 'BaytemÃ¼r').split(',').map(value => value.trim()).filter(Boolean);
-        const database = reportDatabases.find(value => value.toLocaleLowerCase('tr-TR') === 'baytemÃ¼r') || reportDatabases[0];
         const dbPool = await getDbPool();
-        const result = await dbPool.request().input('document', sql.NVarChar(100), document).query(`
+        // The sales report can use an order number as its document column.  Do
+        // not assume that every sale lives in the legacy Baytemür database or
+        // that the displayed number is already a Rechnung/Quittung number.
+        let result;
+        let database;
+        let invoiceLookupError;
+        const headerDatabases = [];
+        for (const candidateDatabase of reportDatabases) {
+            try {
+                const tableCheck = await dbPool.request().query(`
+                SELECT TOP 1 1 AS ExistsHere
+                FROM ${quoteSqlName(candidateDatabase)}.sys.tables AS t
+                JOIN ${quoteSqlName(candidateDatabase)}.sys.schemas AS s ON s.schema_id=t.schema_id
+                WHERE s.name=N'dbo' AND t.name=N'Auftrag'
+            `);
+                if (tableCheck.recordset.length) headerDatabases.push(candidateDatabase);
+            } catch (error) {
+                console.warn(`Invoice header table check skipped for ${candidateDatabase}: ${error.message}`);
+            }
+        }
+        for (const candidateDatabase of headerDatabases) {
+            try {
+                const candidateResult = await dbPool.request().input('document', sql.NVarChar(100), document).query(`
             SELECT TOP 1
               [Auftrag_ID] AS OrderId, [Auftrags-Rechnungs-Nr] AS OrderInvoiceNumber,
               [Rechnungsnummer] AS InvoiceNumber, [Quittungsnummer] AS ReceiptNumber,
@@ -741,9 +768,9 @@ fastify.get('/api/sales-report/invoice/:document', { preHandler: requireAnyRepor
               [Rabatt_DM] AS DiscountAmount, [Zusatzrabatt] AS ExtraDiscount,
               [Anzahlungsbetrag] AS DepositAmount, [Skonto] AS CashDiscountRate,
               [Skontobetrag] AS CashDiscountAmount, [BetragOffen] AS OpenAmount,
-              [Restforderung] AS RemainingClaim, [GebÃ¼hren] AS Fees,
-              [Versicherung_Betrag] AS InsuranceAmount, [WÃ¤hrungID] AS CurrencyId,
-              [WÃ¤hrung_Kurs] AS CurrencyRate, [Barverkauf] AS CashSale,
+              [Restforderung] AS RemainingClaim, [Gebühren] AS Fees,
+              [Versicherung_Betrag] AS InsuranceAmount, [WährungID] AS CurrencyId,
+              [Währung_Kurs] AS CurrencyRate, [Barverkauf] AS CashSale,
               [Barzahlung] AS CashPayment, [Scheck] AS ChequePayment,
               [Zahlungsziel] AS PaymentTerms, [Zahlungszieldatum] AS PaymentDueDate,
               [Zahlungsvermerk] AS PaymentNote, [Ausgeliefert] AS Delivered,
@@ -756,25 +783,45 @@ fastify.get('/api/sales-report/invoice/:document', { preHandler: requireAnyRepor
               [Bergung STD] AS RecoveryHours, [BergungBetrag] AS RecoveryAmount,
               [Zusatzpersonal Std] AS ExtraStaffHours, [Zusatzpersonal Betrag] AS ExtraStaffAmount,
               [Sonstiges_Anz] AS OtherQuantity, [Sonstiges Text] AS OtherText,
-              [Sonstiges Betrag] AS OtherAmount, [ZuschlÃ¤ge_Anz] AS SurchargeQuantity,
-              [ZuschlÃ¤ge Text] AS SurchargeText, [ZuschlÃ¤ge Betrag] AS SurchargeAmount,
+              [Sonstiges Betrag] AS OtherAmount, [Zuschläge_Anz] AS SurchargeQuantity,
+              [Zuschläge Text] AS SurchargeText, [Zuschläge Betrag] AS SurchargeAmount,
               [Sicherung Tage] AS StorageDays, [Sicherung Betrag] AS StorageAmount,
               [Ersatzteile_Anz] AS PartQuantity, [Ersatzteile Text] AS PartText,
               [Ersatzteile Betrag] AS PartAmount, [Stadt_Anz] AS CityQuantity,
               [Stadt_Betrag] AS CityAmount, [Schlepp_km] AS TowingKm,
               [Schlepp_Betrag] AS TowingAmount, [Tel] AS TelephoneAmount,
               [Kraftstoff] AS FuelAmount
-            FROM ${quoteSqlName(database)}.[dbo].[Auftrag]
+            FROM ${quoteSqlName(candidateDatabase)}.[dbo].[Auftrag]
             WHERE CONVERT(nvarchar(100), [Auftrags-Rechnungs-Nr])=@document
                OR CONVERT(nvarchar(100), [Rechnungsnummer])=@document
                OR CONVERT(nvarchar(100), [Quittungsnummer])=@document
             ORDER BY [Auftragsdatum] DESC
         `);
-        if (!result.recordset.length) return reply.status(404).send({ error: 'Fatura ayrÄ±ntÄ±sÄ± bulunamadÄ±.', read_only: true });
+                if (candidateResult.recordset.length) {
+                    result = candidateResult;
+                    database = candidateDatabase;
+                    break;
+                }
+            } catch (error) {
+                // Some configured report databases do not contain Auftrag.
+                invoiceLookupError = error;
+                console.warn(`Invoice lookup skipped for ${candidateDatabase}: ${error.message}`);
+            }
+        }
+        if (!result?.recordset.length) return reply.status(invoiceLookupError ? 500 : 404).send({ error: invoiceLookupError?.message || 'Fatura ayrÄ±ntÄ±sÄ± bulunamadÄ±.', read_only: true });
         let items = [];
         try {
-            const detailDatabase = reportDatabases.find(value => value.toLocaleLowerCase('tr-TR') === 'baytemÃ¼rii') || 'BaytemÃ¼rII';
-            const itemResult = await dbPool.request().input('document', sql.NVarChar(100), document).query(`
+            // Service line tables are linked by the order-invoice number, even
+            // when the report row was opened using an order number.
+            const invoice = result.recordset[0];
+            const itemDocument = String(invoice.OrderInvoiceNumber || invoice.InvoiceNumber || invoice.ReceiptNumber || document).trim();
+            // Installations may keep invoice headers and their line tables in
+            // separate report databases.  Prefer the header database, then
+            // fall back to the other configured databases.
+            const itemDatabases = [database, ...reportDatabases.filter(value => value !== database)];
+            for (const itemDatabase of itemDatabases) {
+                try {
+                    const itemResult = await dbPool.request().input('document', sql.NVarChar(100), itemDocument).query(`
                 SELECT * FROM (
                   SELECT N'Genel' AS ItemType, [Position] AS Position,
                          CAST(NULL AS nvarchar(100)) AS ArticleNumber,
@@ -786,7 +833,7 @@ fastify.get('/api/sales-report/invoice/:document', { preHandler: requireAnyRepor
                          CONVERT(nvarchar(max), [Bemerkung]) AS Note,
                          CAST(NULL AS nvarchar(100)) AS VehicleNumber,
                          CAST(NULL AS nvarchar(100)) AS EbayNumber, 1 AS SortOrder
-                  FROM ${quoteSqlName(detailDatabase)}.[dbo].[Leistung]
+                  FROM ${quoteSqlName(itemDatabase)}.[dbo].[Leistung]
                   WHERE CONVERT(nvarchar(100), [Auftrags-Rechnungs-Nr])=@document
                   UNION ALL
                   SELECT N'ParÃ§a' AS ItemType, [Position], CONVERT(nvarchar(100), [Artikelnummer]),
@@ -796,7 +843,7 @@ fastify.get('/api/sales-report/invoice/:document', { preHandler: requireAnyRepor
                          TRY_CONVERT(decimal(19,2), COALESCE(NULLIF([FW_Gesamtpreis],0), [Gesamtpreis])),
                          CONVERT(nvarchar(max), [Bemerkung]), CONVERT(nvarchar(100), [Fahrzeugnummer]),
                          CONVERT(nvarchar(100), [Ebayartikelnummer]), 2 AS SortOrder
-                  FROM ${quoteSqlName(detailDatabase)}.[dbo].[LeistungBarverkauf]
+                  FROM ${quoteSqlName(itemDatabase)}.[dbo].[LeistungBarverkauf]
                   WHERE CONVERT(nvarchar(100), [Auftrags-Rechnungs-Nr])=@document
                   UNION ALL
                   SELECT N'AtÃ¶lye' AS ItemType, [Position], CONVERT(nvarchar(100), [EAN]),
@@ -806,16 +853,21 @@ fastify.get('/api/sales-report/invoice/:document', { preHandler: requireAnyRepor
                          TRY_CONVERT(decimal(19,2), COALESCE(NULLIF([FW_Gesamtpreis],0), [Gesamtpreis])),
                          CONVERT(nvarchar(max), [Bemerkung]), CAST(NULL AS nvarchar(100)),
                          CAST(NULL AS nvarchar(100)), 3 AS SortOrder
-                  FROM ${quoteSqlName(detailDatabase)}.[dbo].[LeistungWerk]
+                  FROM ${quoteSqlName(itemDatabase)}.[dbo].[LeistungWerk]
                   WHERE CONVERT(nvarchar(100), [Auftrags-Rechnungs-Nr])=@document
                 ) invoiceItems ORDER BY SortOrder, Position
             `);
-            items = itemResult.recordset.map(item => ({
-                type: item.ItemType, position: item.Position, article: item.ArticleNumber,
-                description: item.Description, quantity: Number(item.Quantity), unit_price: Number(item.UnitPrice),
-                discount: item.Discount === null ? null : Number(item.Discount), total: Number(item.TotalPrice),
-                note: item.Note, vehicle: item.VehicleNumber, ebay: item.EbayNumber
-            }));
+                    items = itemResult.recordset.map(item => ({
+                        type: item.ItemType, position: item.Position, article: item.ArticleNumber,
+                        description: item.Description, quantity: Number(item.Quantity), unit_price: Number(item.UnitPrice),
+                        discount: item.Discount === null ? null : Number(item.Discount), total: Number(item.TotalPrice),
+                        note: item.Note, vehicle: item.VehicleNumber, ebay: item.EbayNumber
+                    }));
+                    if (items.length) break;
+                } catch (error) {
+                    console.warn(`Invoice items skipped for ${itemDatabase}: ${error.message}`);
+                }
+            }
         } catch (error) {
             console.warn(`Invoice items could not be read for ${document}: ${error.message}`);
         }

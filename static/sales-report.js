@@ -308,7 +308,7 @@ function openPerson(code) {
   $('personTrendTitle').textContent = reportData.month ? 'Gunluk satis dagilimi · onceki yil karsilastirmali' : 'Aylik satis dagilimi · onceki yil karsilastirmali';
   renderPeriodChart($('personTrend'), points, previousPeriod, Boolean(reportData.month), code);
   $('personResultCount').textContent = `${num.format(rows.length)} islem · Fatura detayina ulasmak icin satira tiklayin`;
-  $('personTransactions').innerHTML = rows.map(row => `<tr class="invoice-row" data-invoice-document="${esc(row.document || '')}" data-invoice-day="${String(row.date).slice(0, 10)}" data-invoice-person="${esc(code)}"><td>${new Date(row.date).toLocaleDateString('de-DE')}</td><td><b>${esc(row.document || '—')}</b></td><td>${euro.format(row.amount)}</td></tr>`).join('');
+  $('personTransactions').innerHTML = rows.map(row => `<tr class="invoice-row" data-invoice-document="${esc(row.document || '')}" data-invoice-day="${String(row.date).slice(0, 10)}" data-invoice-person="${esc(code)}"><td>${new Date(row.date).toLocaleDateString('de-DE')}</td><td><b>${esc(row.document || '—')}</b></td><td>${euro.format(row.amount)}</td><td><button class="invoice-detail-button" type="button">Detay</button></td></tr>`).join('');
   $('personModal').classList.remove('hidden');
   document.body.classList.add('modal-open');
 }
